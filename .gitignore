@@ -1,0 +1,7 @@
+**/.idea
+**/cmake-*
+**/Fiora.egg-info
+**/fiora.egg-info
+**.vscode
+**__pycache__
+**.ipynb_checkpoints

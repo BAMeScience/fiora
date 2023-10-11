@@ -1,0 +1,127 @@
+import pandas as pd
+from rdkit import RDLogger
+RDLogger.DisableLog('rdApp.*')
+
+import argparse
+import modules.IO.mgfWriter as mgfWriter
+import modules.IO.mspWriter as mspWriter
+
+from modules.GNN.GNNModules import GNNCompiler
+from modules.MS.SimulationFramework import SimulationFramework
+from modules.MOL.Metabolite import Metabolite
+from modules.GNN.AtomFeatureEncoder import AtomFeatureEncoder
+from modules.GNN.BondFeatureEncoder import BondFeatureEncoder
+from modules.GNN.SetupFeatureEncoder import SetupFeatureEncoder
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(prog='fiora-predict',
+                    description='Fiora is an in silico fragmentation framework, which predicts peaks and simulates tandem mass spectra including features such as retention time and collision cross sections. Use this script for spectrum predictions with a (pre-)trained model.',
+                    epilog='Disclaimer:\nNo prediction software is perfect. This is an early prototype. Use with caution.')
+    parser.add_argument("-i", "--input", help="input file containing molecular structures (SMILES/InChi) and metadata (.csv file)", type=str, required=True)
+    parser.add_argument("-o", "--output", help="output file path (.mgf/.msp file)", type=str, required=True)
+    parser.add_argument("--model", help="path to prediction model (.pt file)", type=str, default="default")
+    parser.add_argument("--dev", help="Device to the model. For example cuda:0 for GPU number 0.", type=str, default="cpu")
+
+
+    
+    parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="predict retention time", default=False)
+    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=True)
+    parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=True)
+    args = parser.parse_args()
+
+    return args
+
+
+
+
+metadata_key_map = {
+                "name": "Name",
+                "collision_energy":  "CE", 
+                "instrument": "Instrument_type",
+                "precursor_mode": "Precursor_type",
+                }
+
+
+def build_metabolites(df):
+    
+    # Set feature encoder up
+    # TODO soft-code
+    CE_upper_limit = 80.0
+    weight_upper_limit = 800.0
+
+    node_encoder = AtomFeatureEncoder(feature_list=["symbol", "num_hydrogen", "ring_type"])
+    bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
+    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"])
+    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"])
+
+    setup_encoder.normalize_features["collision_energy"]["max"] = CE_upper_limit 
+    setup_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit 
+    rt_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit 
+
+    # Convert SMILES to Metabolites and create structure graphs and fragmentation trees
+    df["Metabolite"] = df["SMILES"].apply(Metabolite)
+    df["Metabolite"].apply(lambda x: x.create_molecular_structure_graph())
+    df["Metabolite"].apply(lambda x: x.compute_graph_attributes(node_encoder, bond_encoder))
+    
+    # Map covariate features to dedicated format and encode
+    df["summary"] = df.apply(lambda x: {key: x[name] for key, name in metadata_key_map.items()}, axis=1)
+    df.apply(lambda x: x["Metabolite"].add_metadata(x["summary"], setup_encoder, rt_encoder), axis=1)
+    
+    # Fragment coumpounds
+    df["Metabolite"].apply(lambda x: x.fragment_MOL(depth=1))
+    #df.apply(lambda x: x["Metabolite"].match_fragments_to_peaks(x["peaks"]["mz"], x["peaks"]["intensity"], tolerance=x["ppm_peak_tolerance"]), axis=1)
+    
+    return df
+
+def main():
+    args = parse_args()
+    print(f'Running fiora prediction with the following parameters: {args}')
+    
+
+    # Load backend model
+    if args.model == "default": raise NotImplementedError("Default model is not yet implemented. Specify a model to load.")
+    model = GNNCompiler.load(args.model)
+    model.eval()
+    model = model.to(args.dev)
+
+    # Set up Fiora
+    fiora = SimulationFramework(None, dev=args.dev, with_RT=True, with_CCS=True)
+
+    # Load the data
+    df = pd.read_csv(args.input)
+    
+    # Construct molecular structure graphs and fragmentation trees
+    df = build_metabolites(df)
+    
+    # Simulate compound fragmentation
+    df = fiora.simulate_all(df, model, groundtruth=False)
+    df["peaks"] = df["sim_peaks"]
+    df["RETENTIONTIME"] = df["RT_pred"] 
+    df["CCS"] = df["CCS_pred"] 
+    df["COMMENT"] = "\"In silico generated spectrum by Fiora pre-release version (v0.0.0 - version not yet existent)\""
+    
+    
+    print(df.columns)
+    # Write output file
+    if args.output.endswith(".msp"):
+        raise NotImplementedError("MSP Format coming soon ...")
+        #mspWriter.write_msp(df, path=args.output, write_header=True, headers=["Name"])
+    elif args.output.endswith(".mgf"):
+        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE", "COMMENT"]
+        if args.rt: headers.append("RETENTIONTIME")
+        if args.ccs: headers.append("CCS")
+        mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
+    else:
+        print(f"Warning: Unknown output format {args.output}. Writing results to {args.output}.mgf instead.")
+        args.output = args.output + ".mgf"
+        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE", "COMMENT"]
+        if args.rt: headers.append("RETENTIONTIME")
+        if args.ccs: headers.append("CCS")
+        mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
+
+
+
+
+if __name__ == "__main__":
+    main()
