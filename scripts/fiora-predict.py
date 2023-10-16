@@ -1,6 +1,6 @@
 import pandas as pd
 from rdkit import RDLogger
-RDLogger.DisableLog('rdApp.*')
+RDLogger.DisableLog("rdApp.*")
 
 import argparse
 import fiora.IO.mgfWriter as mgfWriter
