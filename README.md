@@ -1,12 +1,11 @@
-# <span style="font-variant:small-caps;">**Fiora**</span>
+# **F<small>IORA</small>**
 
 > **Disclaimer: Early Development / Prototype Notice**<br>
-> <span style="font-variant:small-caps;">**Fiora**</span> is an algorithm in its early stages of development and is provided as a prototype.
-Performance is not guaranteed, functionality may be incomplete, and usability was not a central concern during this phase of development.
+> **F<small>IORA</small>** is an algorithm in its early stages of development and is provided as a prototype.
+Performance is not guaranteed, functionality may be incomplete, and usability was not a central concern during this phase of development. 
 Users should exercise caution.
 
-<span style="font-variant:small-caps;">**Fiora**</span> is an *in silico* fragmentation algorithm for small compounds and produces simulated tandem mass spectra. The framework uses a graph neural network as the core module and edge prediction to identify likely bond cleavages and fragment ion intensities. Additionally, <span style="font-variant:small-caps;">**Fiora**</span> predicts retention time (RT) and collision cross section (CCS) of the compounds.
-
+**F<small>IORA</small>** is an *in silico* fragmentation algorithm for small compounds and produces simulated tandem mass spectra (MS/MS). The framework uses a graph neural network as the core module and edge prediction to identify likely bond cleavages and fragment ion intensities. Additionally, **F<small>IORA</small>** predicts retention time (RT) and collision cross section (CCS) of the compounds.
 
 ## Requirements
 
