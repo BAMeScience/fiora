@@ -11,9 +11,9 @@ from rdkit import DataStructs
 from torch_geometric.data import Data
 
 
-from modules.MOL.constants import DEFAULT_PPM, DEFAULT_MODES
-from modules.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
-from modules.MOL.FragmentationTree import FragmentationTree 
+from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES
+from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
+from fiora.MOL.FragmentationTree import FragmentationTree 
 
 
 

@@ -3,15 +3,15 @@ from rdkit import RDLogger
 RDLogger.DisableLog('rdApp.*')
 
 import argparse
-import modules.IO.mgfWriter as mgfWriter
-import modules.IO.mspWriter as mspWriter
+import fiora.IO.mgfWriter as mgfWriter
+import fiora.IO.mspWriter as mspWriter
 
-from modules.GNN.GNNModules import GNNCompiler
-from modules.MS.SimulationFramework import SimulationFramework
-from modules.MOL.Metabolite import Metabolite
-from modules.GNN.AtomFeatureEncoder import AtomFeatureEncoder
-from modules.GNN.BondFeatureEncoder import BondFeatureEncoder
-from modules.GNN.SetupFeatureEncoder import SetupFeatureEncoder
+from fiora.GNN.GNNModules import GNNCompiler
+from fiora.MS.SimulationFramework import SimulationFramework
+from fiora.MOL.Metabolite import Metabolite
+from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
+from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
+from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
 
 
 def parse_args():

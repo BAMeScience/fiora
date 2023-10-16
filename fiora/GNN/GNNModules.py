@@ -1,6 +1,6 @@
 import torch
-from modules.GNN.GNNLayers import GCNLayer
-from modules.GNN.FeatureEmbedding import FeatureEmbedding, FeatureEmbeddingPacked
+from fiora.GNN.GNNLayers import GCNLayer
+from fiora.GNN.FeatureEmbedding import FeatureEmbedding, FeatureEmbeddingPacked
 import torch_geometric.nn as geom_nn
 from typing import Literal
 import dill

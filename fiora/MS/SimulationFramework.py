@@ -4,9 +4,9 @@ import pandas as pd
 from typing import Literal, Dict
 import matplotlib.pyplot as plt
 
-from modules.MOL.Metabolite import Metabolite
-from modules.MS.spectral_scores import *
-import modules.visualization.spectrum_visualizer as sv
+from fiora.MOL.Metabolite import Metabolite
+from fiora.MS.spectral_scores import *
+import fiora.visualization.spectrum_visualizer as sv
 
 class SimulationFramework:
     

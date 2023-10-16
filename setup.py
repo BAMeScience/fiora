@@ -12,11 +12,11 @@ setup(name='Fiora',
       ],
       entry_points={
         "console_scripts": [
-            "fiora-predict = predict:main",
+            "fiora-predict = scripts.predict:main",
         ],
         },
       include_package_data=True,
-      packages=['modules'],
+      packages=['fiora'],
       install_requires=['numpy', 'seaborn', 'torch', 'torch_geometric', 'dill', 'rdkit', 'treelib', 'spectrum_utils', 'setuptools>=24.2.0'],
       python_requires='>=3.10.8',
       # Developers may also want to install: jupyter torchmetrics umap umap-learn

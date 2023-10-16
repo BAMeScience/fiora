@@ -1,6 +1,6 @@
-from modules.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_edges
-from modules.MS.ms_utility import do_mz_values_match
-import modules.MOL.constants as constants
+from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_edges
+from fiora.MS.ms_utility import do_mz_values_match
+import fiora.MOL.constants as constants
 
 from rdkit import Chem
 from rdkit.Chem import AllChem

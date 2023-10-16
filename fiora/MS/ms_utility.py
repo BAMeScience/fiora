@@ -1,5 +1,5 @@
 #from modules.MOL.FragmentationTree import FragmentationTree
-from modules.MOL.constants import PPM, DEFAULT_PPM, MIN_ABS_TOLERANCE
+from fiora.MOL.constants import PPM, DEFAULT_PPM, MIN_ABS_TOLERANCE
 from typing import Literal
 import numpy as np
 import copy

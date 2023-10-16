@@ -6,7 +6,7 @@ from torchmetrics import Accuracy, MetricTracker, MetricCollection, Precision, R
 from sklearn.model_selection import train_test_split
 from typing import Literal
 
-from modules.GNN.Datasets import collate_graph_batch, collate_graph_edge_batch
+from fiora.GNN.Datasets import collate_graph_batch, collate_graph_edge_batch
 
 
 '''

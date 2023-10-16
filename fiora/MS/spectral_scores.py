@@ -2,7 +2,7 @@ import numpy as np
 from typing import Literal, Dict
 
 
-from modules.MOL.constants import DEFAULT_DALTON
+from fiora.MOL.constants import DEFAULT_DALTON
 
 def cosine(vec, vec_other):
     return np.dot(vec, vec_other) / (np.linalg.norm(vec) * np.linalg.norm(vec_other))
