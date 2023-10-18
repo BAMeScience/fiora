@@ -1,11 +1,11 @@
-# **F<small>IORA</small>**
+# **F<span style="font-variant:small-caps;">iora</span>**
 
 > **Disclaimer: Early Development / Prototype Notice**<br>
-> **F<small>IORA</small>** is an algorithm in its early stages of development and is provided as a prototype.
+> **F<span style="font-variant:small-caps;">iora</span>** is an algorithm in its early stages of development and is provided as a prototype.
 Performance is not guaranteed, functionality may be incomplete, and usability was not a central concern during this phase of development. 
 Users should exercise caution.
 
-**F<small>IORA</small>** is an *in silico* fragmentation algorithm for small compounds and produces simulated tandem mass spectra (MS/MS). The framework uses a graph neural network as the core module and edge prediction to identify likely bond cleavages and fragment ion intensities. Additionally, **F<small>IORA</small>** predicts retention time (RT) and collision cross section (CCS) of the compounds.
+**F<span style="font-variant:small-caps;">iora</span>** is an *in silico* fragmentation algorithm for small compounds and produces simulated tandem mass spectra (MS/MS). The framework uses a graph neural network as the core module and edge prediction to identify likely bond cleavages and fragment ion intensities. Additionally, **F<small>IORA</small>** predicts retention time (RT) and collision cross section (CCS) of the compounds.
 
 ## Requirements
 
@@ -38,11 +38,11 @@ Use spectral prediction function as follows:
 
 An input csv file must be provided and an output file specified (mgf or msp format).
 
-## Input format
+### Input format
 
 Input files are expected to be in csv format. With a header defining the columns: "Name", "SMILES", "Precursor_type", "CE", "Instrument_type" and rows listing individual queries.
 See example [input file](examples/example_input.csv).
 
-## Output format
+### Output format
 
 Currently, only the mgf format is supported.
