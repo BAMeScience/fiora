@@ -246,6 +246,22 @@ class GNNCompiler(torch.nn.Module):
 
         return model
     
+    @classmethod
+    def load_from_state_dict(cls, PATH: str) -> 'GNNCompiler':
+
+        PARAMS_PATH = PATH.replace(".pt", "_params.json")
+        STATE_PATH = PATH.replace(".pt", "_state.pt")
+        
+        with open(PARAMS_PATH, 'r') as fp:
+            params = json.load(fp)
+        model = GNNCompiler(params)
+        model.load_state_dict(torch.load(STATE_PATH))
+
+        if not isinstance(model, cls):
+            raise ValueError(f'file {PATH} contains incorrect model class {type(model)}')
+
+        return model
+    
     def save(self, PATH: str) -> None:
         with open(PATH, 'wb') as f:
             dill.dump(self, f)

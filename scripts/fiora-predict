@@ -77,12 +77,23 @@ def build_metabolites(df):
 
 def main():
     args = parse_args()
-    print(f'Running fiora prediction with the following parameters: {args}')
+    print(f'Running fiora prediction with the following parameters: {args}\n')
     
 
     # Load backend model
     if args.model == "default": raise NotImplementedError("Default model is not yet implemented. Specify a model to load.")
-    model = GNNCompiler.load(args.model)
+    
+    try: 
+        model = GNNCompiler.load(args.model)
+    except:
+        try:
+            print(f"Warning: Failed loading the model {args.model}. Fallback: Loading the model from state dictionary.")
+            model = GNNCompiler.load_from_state_dict(args.model)
+            print("Model loaded from state dict without further errors.")
+        except:
+            print("Error: Failed loading from state dict.")
+            exit(1)
+        
     model.eval()
     model = model.to(args.dev)
 
@@ -102,8 +113,6 @@ def main():
     df["CCS"] = df["CCS_pred"] 
     df["COMMENT"] = "\"In silico generated spectrum by Fiora pre-release version (v0.0.0 - version not yet existent)\""
     
-    
-    print(df.columns)
     # Write output file
     if args.output.endswith(".msp"):
         raise NotImplementedError("MSP Format coming soon ...")
@@ -121,7 +130,7 @@ def main():
         if args.ccs: headers.append("CCS")
         mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
 
-
+    print("Finished prediction.")
 
 
 if __name__ == "__main__":
