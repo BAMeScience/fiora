@@ -23,7 +23,6 @@ class TestFioraPredict(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm, contextlib.redirect_stderr(f):
                 fiora_predict.main()
             self.assertEqual(cm.exception.code, 2)
-            print(f.getvalue())
             self.assertTrue(f.getvalue().startswith("usage:"))   
             
             
@@ -32,9 +31,6 @@ class TestFioraPredict(unittest.TestCase):
         with patch("sys.argv", ["main", "-h"]):
             with self.assertRaises(SystemExit) as cm, contextlib.redirect_stdout(f):
                 fiora_predict.main()
-                captured = capsys.readouterr()
-                self.assertTrue(len(captured.out) < 1)
-                print(captured.out)
             self.assertEqual(cm.exception.code, 0)
             self.assertTrue(f.getvalue().startswith("usage:"))
             self.assertTrue("-h, --help" in  f.getvalue())
@@ -44,7 +40,7 @@ class TestFioraPredict(unittest.TestCase):
     def test_dummy(self):
         self.assertEqual('fiora'.upper(), 'FIORA')
 
-    def test_example_prediction_not_yet_implemnted(self):
+    def test_example_prediction_not_yet_implemented(self):
         self.assertTrue(1 == int("1"))
         self.assertFalse(2 == 1)
 
