@@ -27,6 +27,9 @@ Cd into this directory. Then, install package by using the setup.py
 
     pip install .
 
+(Optional: You may want to test that the package works as intended. This can be done by running the sripts in the *tests* directory or with pytest (requires: *pip install pytest*))
+
+    pytest -v tests
 
 ## Usage
 

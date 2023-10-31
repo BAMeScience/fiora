@@ -20,5 +20,5 @@ setup(name='Fiora',
       packages=['fiora', 'fiora.GNN', 'fiora.IO',  'fiora.MOL', 'fiora.MS', 'fiora.visualization'],
       install_requires=['numpy', 'seaborn', 'torch', 'torch_geometric', 'dill', 'rdkit', 'treelib', 'spectrum_utils', 'setuptools>=24.2.0'],
       python_requires='>=3.10.8',
-      # Developers may also want to install: jupyter torchmetrics umap umap-learn
+      # Developers may also want to install: jupyter torchmetrics umap umap-learn pytest
       )
