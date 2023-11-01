@@ -41,14 +41,13 @@ def annotate_spectrum(spectrum, peptide):
     plt.show()
 
 def plot_spectrum(spectrum, second_spectrum=None, annotate=False, peptide="None", charge=0, title=None, out=None, ax=None, show=False):
-    sus.static_modification('C', 57.02146)
+    #sus.static_modification('C', 57.02146)
     #modifications = {i: 57.02200 for i, AS in enumerate(peptide) if AS=="C"}
     # modifications = {6: 57.02200}
 
     spectrum = sus.MsmsSpectrum("None", 0, charge,
                                 spectrum['peaks']['mz'],
-                                spectrum['peaks']['intensity'], peptide=peptide #modifications=modifications
-                                )
+                                spectrum['peaks']['intensity'])
     if annotate:
         spectrum = spectrum.annotate_peptide_fragments(0.2, 'Da', ion_types='by')
     if not ax:
@@ -58,8 +57,6 @@ def plot_spectrum(spectrum, second_spectrum=None, annotate=False, peptide="None"
         bottom_spectrum = sus.MsmsSpectrum("None", 0, charge, #int(second_spectrum["Name"].split('/')[-1]),
                                            second_spectrum['peaks']['mz'],
                                            second_spectrum['peaks']['intensity'],
-                                           peptide=peptide
-                                           #modifications=modifications
                                            )
         if annotate:
             bottom_spectrum = bottom_spectrum.annotate_peptide_fragments(0.2, 'Da', ion_types='by')
@@ -67,8 +64,11 @@ def plot_spectrum(spectrum, second_spectrum=None, annotate=False, peptide="None"
         sup.mirror(spec_top=spectrum,
                    spec_bottom=bottom_spectrum, #.annotate_peptide_fragments(0.5, 'Da', ion_types='aby'),
                    ax=ax)
+        ax.set_ylim(-1.075, 1.075)
+
     else:
         sup.spectrum(spectrum, ax=ax)
+        ax.set_ylim(0, 1.1)
 
     plt.title(title)
     if out is not None:
