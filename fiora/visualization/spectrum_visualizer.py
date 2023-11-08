@@ -4,6 +4,8 @@ import spectrum_utils.spectrum as sus
 import seaborn as sns
 from pyteomics import pylab_aux as pa, usi
 import pandas as pd
+import spectrum_utils.fragment_annotation as fa
+from fiora.visualization.define_colors import *
 
 def plot_spectrum_obsolete(spectrum, second_spectrum=None, title=None, out=None):
     spectrum = sus.MsmsSpectrum("None", 0, 0,
@@ -80,7 +82,7 @@ def plot_spectrum(spectrum, second_spectrum=None, annotate=False, peptide="None"
             return ax
 
 
-def annotate_and_plot(spectrum, mz_fragments, ppm_tolerance=None, tolerance=0.1, ax=None):
+def annotate_and_plot_old(spectrum, mz_fragments, ppm_tolerance=None, tolerance=0.1, ax=None):
     if ppm_tolerance:
         tolerances = [mz * ppm_tolerance for mz in mz_fragments]
     else:
@@ -119,4 +121,40 @@ def plot_vector_spectrum(vec1, vec2, ax=None, title=None, y_label="probability",
     ax.set_xlabel("")
     ax.set_ylabel(y_label)
     ax.set_title(title)
+    return ax
+
+
+# From spectrum utils issue https://github.com/bittremieux/spectrum_utils/issues/56
+# Overwrite get_theoretical_fragments
+def get_theoretical_fragments(proteoform, ion_types=None, max_ion_charge=None, neutral_losses=None):
+    fragments_masses = []
+    for mod in proteoform.modifications:
+        fragment = fa.FragmentAnnotation(ion_type="w", charge=1)
+        mass = mod.source[0].mass
+        fragments_masses.append((fragment, mass))
+    return fragments_masses
+
+def annotate_and_plot(spectrum, mz_fragments, with_grid: bool=False, ppm_tolerance: int=100, ax=None):
+    
+    # Use the custom function to annotate the fragments
+    fa.get_theoretical_fragments = get_theoretical_fragments
+    fa._supported_ions += "w"
+    
+    # Set peak color for custom ion
+    sup.colors["w"] = lightblue_hex
+
+    # Instantiate Spectrum and annotate with proforma string format (e.g. X[+9.99] )
+    spectrum = sus.MsmsSpectrum("None", 0, 1, spectrum['peaks']['mz'], spectrum['peaks']['intensity'])
+    x_string = "".join([f"X[+{mz}]" for mz in sorted(mz_fragments)])
+    spectrum.annotate_proforma(x_string, ppm_tolerance, "ppm")
+    
+    
+    # Find ax and plot
+    if not ax:
+        ax = plt.gca()
+    ax.set_ylim(0, 1.075)
+    sup.spectrum(spectrum, grid=with_grid, ax=ax)
+    if not with_grid:
+        sns.despine(ax=ax)
+
     return ax
