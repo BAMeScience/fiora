@@ -90,9 +90,7 @@ def annotate_and_plot(spectrum, mz_fragments, ppm_tolerance=None, tolerance=0.1,
                                 0, 
                                 1,
                                 spectrum['peaks']['mz'],
-                                spectrum['peaks']['intensity'], 
-                                peptide=None
-                                )
+                                spectrum['peaks']['intensity'])
     
     annotate_mz_fragments(spectrum=spectrum, mz_fragments=mz_fragments, tolerances=tolerances)
     
