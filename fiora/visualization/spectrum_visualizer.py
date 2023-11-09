@@ -6,71 +6,82 @@ from pyteomics import pylab_aux as pa, usi
 import pandas as pd
 import spectrum_utils.fragment_annotation as fa
 from fiora.visualization.define_colors import *
+from typing import Dict
 
-def plot_spectrum_obsolete(spectrum, second_spectrum=None, title=None, out=None):
-    spectrum = sus.MsmsSpectrum("None", 0, 0,
-                                spectrum['peaks']['mz'],
-                                spectrum['peaks']['intensity'])
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    spectrum.set_mz_range(min_mz=0, max_mz=2000)
-    if second_spectrum is not None:
-        bottom_spectrum = sus.MsmsSpectrum(second_spectrum["Name"], float(second_spectrum['MW']), int(second_spectrum["Name"].split('/')[-1]),
-                                           second_spectrum['peaks']['mz'],
-                                           second_spectrum['peaks']['intensity'],
-                                           peptide=second_spectrum["Name"].split('/')[0])
-        bottom_spectrum.set_mz_range(min_mz=0, max_mz=2000)
-        sup.mirror(spec_top=spectrum,
-                   spec_bottom=bottom_spectrum, #.annotate_peptide_fragments(0.5, 'Da', ion_types='aby'),
-                   ax=ax)
+# From spectrum utils issue https://github.com/bittremieux/spectrum_utils/issues/56
+# Overwrite get_theoretical_fragments
+def get_theoretical_fragments(proteoform, ion_types=None, max_ion_charge=None, neutral_losses=None):
+    fragments_masses = []
+    for mod in proteoform.modifications:
+        fragment = fa.FragmentAnnotation(ion_type="w", charge=1)
+        mass = mod.source[0].mass
+        fragments_masses.append((fragment, mass))
+    return fragments_masses
+
+def set_custom_annotation():
+    # Use the custom function to annotate the fragments
+    fa.get_theoretical_fragments = get_theoretical_fragments
+    fa._supported_ions += "w"    
+    # Set peak color for custom ion
+    sup.colors["w"] = lightblue_hex
+
+
+def annotate_and_plot(spectrum, mz_fragments, with_grid: bool=False, ppm_tolerance: int=100, ax=None):
+    
+    set_custom_annotation()
+
+    # Instantiate Spectrum and annotate with proforma string format (e.g. X[+9.99] )
+    spectrum = sus.MsmsSpectrum("None", 0, 1, spectrum['peaks']['mz'], spectrum['peaks']['intensity'])
+    x_string = "".join([f"X[+{mz}]" for mz in sorted(mz_fragments)])
+    spectrum.annotate_proforma(x_string, ppm_tolerance, "ppm")
+    
+    
+    # Find ax and plot
+    if not ax:
+        ax = plt.gca()
+    sup.spectrum(spectrum, grid=with_grid, ax=ax)
+    if with_grid:
+        ax.set_ylim(0, 1.075)
     else:
-        sup.spectrum(spectrum, ax=ax)
+        sns.despine(ax=ax)
 
-    plt.title(title)
-    if out is not None:
-       plt.savefig(out)
-    else:
-        plt.show()
+    return ax
 
-def annotate_spectrum(spectrum, peptide):
-    spectrum = usi.proxi(
-    'mzspec:PXD004732:01650b_BC2-TUM_first_pool_53_01_01-3xHCD-1h-R2:scan:41840',
-    'massive')
-    print(spectrum)
-    peptide = 'WNQLQAFWGTGK'
-    pa.annotate_spectrum(spectrum, peptide, precursor_charge=2, backend='spectrum_utils',
-                         ion_types='aby', title=peptide)
-    plt.show()
-
-def plot_spectrum(spectrum, second_spectrum=None, annotate=False, peptide="None", charge=0, title=None, out=None, ax=None, show=False):
-    #sus.static_modification('C', 57.02146)
-    #modifications = {i: 57.02200 for i, AS in enumerate(peptide) if AS=="C"}
-    # modifications = {6: 57.02200}
-
-    spectrum = sus.MsmsSpectrum("None", 0, charge,
-                                spectrum['peaks']['mz'],
-                                spectrum['peaks']['intensity'])
-    if annotate:
-        spectrum = spectrum.annotate_peptide_fragments(0.2, 'Da', ion_types='by')
+def plot_spectrum(spectrum: Dict, second_spectrum: Dict|None=None, highlight_matches: bool=False, facet_plot=False, ppm_tolerance: int=100, charge=0, title=None, out=None, with_grid=False, ax=None, show=False):
+    top_spectrum = sus.MsmsSpectrum("None", 0, charge, spectrum['peaks']['mz'], spectrum['peaks']['intensity'])
     if not ax:
         fig, ax = plt.subplots(figsize=(12, 6))
-    spectrum.set_mz_range(min_mz=0, max_mz=2000)
+    # spectrum.set_mz_range(min_mz=0, max_mz=2000)
     if second_spectrum is not None:
-        bottom_spectrum = sus.MsmsSpectrum("None", 0, charge, #int(second_spectrum["Name"].split('/')[-1]),
-                                           second_spectrum['peaks']['mz'],
-                                           second_spectrum['peaks']['intensity'],
-                                           )
-        if annotate:
-            bottom_spectrum = bottom_spectrum.annotate_peptide_fragments(0.2, 'Da', ion_types='by')
-        bottom_spectrum.set_mz_range(min_mz=0, max_mz=2000)
-        sup.mirror(spec_top=spectrum,
-                   spec_bottom=bottom_spectrum, #.annotate_peptide_fragments(0.5, 'Da', ion_types='aby'),
-                   ax=ax)
-        ax.set_ylim(-1.075, 1.075)
+        bottom_spectrum = sus.MsmsSpectrum("None", 0, charge, second_spectrum['peaks']['mz'], second_spectrum['peaks']['intensity'])
+        if highlight_matches:
+            set_custom_annotation()
 
+            x_string = "".join([f"X[+{mz}]" for mz in sorted(second_spectrum['peaks']['mz'])])
+            top_spectrum.annotate_proforma(x_string, ppm_tolerance, "ppm")
+            x_string = "".join([f"X[+{mz}]" for mz in sorted(spectrum['peaks']['mz'])])
+            bottom_spectrum.annotate_proforma(x_string, ppm_tolerance, "ppm")
+        
+        if facet_plot:
+            sup.facet(spec_top=top_spectrum, spec_mass_errors=top_spectrum, spec_bottom=bottom_spectrum, mass_errors_kws={"plot_unknown": False})
+        else: # mirror plot
+            sup.mirror(spec_top=top_spectrum, spec_bottom=bottom_spectrum, ax=ax, spectrum_kws={"grid": with_grid})
+        
+        if with_grid:
+            ax.set_ylim(-1.075, 1.075)
+        else:
+            sns.despine(ax=ax)
+            if second_spectrum is not None: 
+                ax.spines['bottom'].set_position(('outward', 10))
+
+    # Single spectrum
     else:
-        sup.spectrum(spectrum, ax=ax)
-        ax.set_ylim(0, 1.1)
+        sup.spectrum(top_spectrum, grid=with_grid, ax=ax)
+        if with_grid:
+            ax.set_ylim(0, 1.1)
+        else:
+            sns.despine(ax=ax)
 
     plt.title(title)
     if out is not None:
@@ -80,35 +91,6 @@ def plot_spectrum(spectrum, second_spectrum=None, annotate=False, peptide="None"
             plt.show()
         else:
             return ax
-
-
-def annotate_and_plot_old(spectrum, mz_fragments, ppm_tolerance=None, tolerance=0.1, ax=None):
-    if ppm_tolerance:
-        tolerances = [mz * ppm_tolerance for mz in mz_fragments]
-    else:
-        tolerances = [tolerance] * len(mz_fragments)
-        
-    spectrum = sus.MsmsSpectrum("None",
-                                0, 
-                                1,
-                                spectrum['peaks']['mz'],
-                                spectrum['peaks']['intensity'])
-    
-    annotate_mz_fragments(spectrum=spectrum, mz_fragments=mz_fragments, tolerances=tolerances)
-    
-    if not ax:
-        ax = plt.gca()
-    sup.spectrum(spectrum, ax=ax)
-    return ax
-
-    
-    
-
-def annotate_mz_fragments(spectrum, mz_fragments, tolerances, tag: str = "x"):
-    for mz, tol in zip(mz_fragments, tolerances):
-        spectrum = spectrum.annotate_mz_fragment(fragment_mz=mz, fragment_charge=1, fragment_tol_mass=tol, fragment_tol_mode='Da', text=tag)
-    return spectrum
-
 
 def plot_vector_spectrum(vec1, vec2, ax=None, title=None, y_label="probability", names= None):
     v1 = pd.DataFrame({"range": names if names else range(len(vec1)), "prob": vec1, "group": "prob"})
@@ -124,37 +106,3 @@ def plot_vector_spectrum(vec1, vec2, ax=None, title=None, y_label="probability",
     return ax
 
 
-# From spectrum utils issue https://github.com/bittremieux/spectrum_utils/issues/56
-# Overwrite get_theoretical_fragments
-def get_theoretical_fragments(proteoform, ion_types=None, max_ion_charge=None, neutral_losses=None):
-    fragments_masses = []
-    for mod in proteoform.modifications:
-        fragment = fa.FragmentAnnotation(ion_type="w", charge=1)
-        mass = mod.source[0].mass
-        fragments_masses.append((fragment, mass))
-    return fragments_masses
-
-def annotate_and_plot(spectrum, mz_fragments, with_grid: bool=False, ppm_tolerance: int=100, ax=None):
-    
-    # Use the custom function to annotate the fragments
-    fa.get_theoretical_fragments = get_theoretical_fragments
-    fa._supported_ions += "w"
-    
-    # Set peak color for custom ion
-    sup.colors["w"] = lightblue_hex
-
-    # Instantiate Spectrum and annotate with proforma string format (e.g. X[+9.99] )
-    spectrum = sus.MsmsSpectrum("None", 0, 1, spectrum['peaks']['mz'], spectrum['peaks']['intensity'])
-    x_string = "".join([f"X[+{mz}]" for mz in sorted(mz_fragments)])
-    spectrum.annotate_proforma(x_string, ppm_tolerance, "ppm")
-    
-    
-    # Find ax and plot
-    if not ax:
-        ax = plt.gca()
-    ax.set_ylim(0, 1.075)
-    sup.spectrum(spectrum, grid=with_grid, ax=ax)
-    if not with_grid:
-        sns.despine(ax=ax)
-
-    return ax
