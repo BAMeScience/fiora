@@ -18,15 +18,19 @@ from fiora.MOL.FragmentationTree import FragmentationTree
 
 
 class Metabolite:
-    
-    def __init__(self, SMILES, MOL=None, InChI=None, InChIKey=None, Name=None, id=None):
-        self.SMILES = SMILES
-        if MOL:
-            self.MOL = MOL
-        else:
+    def __init__(self, SMILES: str|None, InChI: str|None=None, id: int|None=None) -> None:
+        if SMILES:
+            self.SMILES = SMILES
             self.MOL = Chem.MolFromSmiles(self.SMILES)
-        self.InChI = InChI
-        self.InChIKEy = InChIKey
+            self.InChI = Chem.MolToInchi(self.MOL)
+            self.InChIKey = Chem.InchiToInchiKey(self.InChI)
+        elif InChI:
+            self.InChI = InChI
+            self.MOL = Chem.MolFromInchi(self.InChI)
+            self.InChIKey = Chem.InchiToInchiKey(self.InChI)
+            self.SMILES = Chem.MolToSmiles(self.MOL) 
+        else:
+            raise ValueError("Neither SMILES nor InChI were specified.")
         
         self.ExactMolWeight = Descriptors.ExactMolWt(self.MOL)
         self.Formula = rdMolDescriptors.CalcMolFormula(self.MOL)
