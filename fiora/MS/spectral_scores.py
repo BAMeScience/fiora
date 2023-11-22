@@ -16,7 +16,8 @@ def cosine_bias(vec, vec_other, cosine_precomputed=None):
     bias = np.sqrt(np.square(np.dot(vec, vec_other)) / np.square(np.linalg.norm(vec) * np.linalg.norm(vec_other)))
     return bias / cosine_precomputed
 
-def cosine_bias(vec, vec_other, cosine_precomputed=None):
+
+def cosine_bias_alt(vec, vec_other, cosine_precomputed=None):
     if not cosine_precomputed:
         cosine_precomputed = cosine(vec, vec_other)
     
@@ -83,17 +84,7 @@ def spectral_reflection_cosine(spec, spec_ref, tolerance=DEFAULT_DALTON, transfo
     return cos
 
 
-def cosine_bias(vec, vec_other, cosine_precomputed=None):
-    if not cosine_precomputed:
-        cosine_precomputed = cosine(vec, vec_other)
-    
-    if cosine_precomputed <= 0.0:
-        return 1.0
-    vec = vec / np.linalg.norm(vec)
-    vec_other = vec_other / np.linalg.norm(vec_other)
 
-    bias = np.sqrt(np.dot(np.square(vec), np.square(vec_other))) # wrong: bias = np.sqrt(np.square(np.dot(vec, vec_other)) / (np.square(np.linalg.norm(vec)) * np.square(np.linalg.norm(vec_other))))
-    return bias / cosine_precomputed
 
 def create_mz_map(mz, mz_other, tolerance):
     mz_unique = np.sort(np.unique(mz + mz_other))
