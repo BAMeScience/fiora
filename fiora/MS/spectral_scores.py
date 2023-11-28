@@ -7,7 +7,7 @@ from fiora.MOL.constants import DEFAULT_DALTON
 def cosine(vec, vec_other):
     return np.dot(vec, vec_other) / (np.linalg.norm(vec) * np.linalg.norm(vec_other))
 
-def cosine_bias(vec, vec_other, cosine_precomputed=None):
+def cosine_bias_alt(vec, vec_other, cosine_precomputed=None):
     if not cosine_precomputed:
         cosine_precomputed = cosine(vec, vec_other)
     
@@ -17,7 +17,7 @@ def cosine_bias(vec, vec_other, cosine_precomputed=None):
     return bias / cosine_precomputed
 
 
-def cosine_bias_alt(vec, vec_other, cosine_precomputed=None):
+def cosine_bias(vec, vec_other, cosine_precomputed=None):
     if not cosine_precomputed:
         cosine_precomputed = cosine(vec, vec_other)
     

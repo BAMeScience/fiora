@@ -58,6 +58,7 @@ def write_spec_files(df, directory, spec_tag="spec"):
 
 def write_dataset(df, directory, label_map = {"dataset": "dataset", "spec": "spec", "name": "name", "formula": "formula", "ionization": "ionization", "smiles": "smiles", "inchikey": "inchikey"}):
     write_labels(df, output_file=os.path.join(directory, "labels.tsv"), label_map=label_map, from_metabolite=True)
+    write_labels(df.iloc[::-1], output_file=os.path.join(directory, "reverse_labels.tsv"), label_map=label_map, from_metabolite=True)
     
     spec_tag = {v: k for k, v in label_map.items()}["spec"]
     spec_path = os.path.join(directory, "spec_files")
