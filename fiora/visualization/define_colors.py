@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.colors
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -106,6 +107,10 @@ def set_light_theme():
                   rc={'axes.edgecolor': 'black', 'ytick.left': True, 'xtick.bottom': True, 'xtick.color': 'black',
                       "axes.spines.bottom": True, "axes.spines.right": True, "axes.spines.top": True,
                       "axes.spines.left": True})
+
+
+def reset_matplotlib():
+    matplotlib.rcParams.update(matplotlib.rcParamsDefault)
 
 
 def set_all_font_sizes(size):
