@@ -65,7 +65,7 @@ class Metabolite:
     def set_id(self, id):
         self.id = id
 
-    def get_theroretical_precursor_mz(self, ion_type: str):
+    def get_theoretical_precursor_mz(self, ion_type: str):
         return self.ExactMolWeight + ADDUCT_WEIGHTS[ion_type]
 
     def get_morganFinger(self):
