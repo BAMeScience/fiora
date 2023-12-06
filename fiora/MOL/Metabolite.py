@@ -11,7 +11,7 @@ from rdkit import DataStructs
 from torch_geometric.data import Data
 
 
-from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES
+from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, ADDUCT_WEIGHTS
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
 from fiora.MOL.FragmentationTree import FragmentationTree 
 
@@ -64,6 +64,9 @@ class Metabolite:
     
     def set_id(self, id):
         self.id = id
+
+    def get_theroretical_precursor_mz(self, ion_type: str):
+        return self.ExactMolWeight + ADDUCT_WEIGHTS[ion_type]
 
     def get_morganFinger(self):
         return self.morganFinger
