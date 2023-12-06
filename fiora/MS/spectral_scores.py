@@ -34,12 +34,12 @@ def create_mz_map(mz, mz_other, tolerance):
     bin_map = dict(zip(mz_unique, range(len(mz_unique))))
     
     for i, mz in enumerate(mz_unique[:-1]):
-        if (mz_unique[i+1] - mz) < tolerance: #TODO this may lead to continuous mz matches that lie >tolerance apart on the edges
+        if abs(mz_unique[i+1] - mz) < tolerance: #TODO this may lead to continuous mz matches that lie >tolerance apart on the edges
             bin_map[mz_unique[i+1]] = bin_map[mz] #TODO remove unmapped bins
 
     return bin_map
 
-def spectral_cosine(spec, spec_ref, tolerance=DEFAULT_DALTON, transform=None, with_bias=False):
+def spectral_cosine(spec, spec_ref, tolerance=DEFAULT_DALTON, transform=None, with_bias=False, remove_mz: float|None=None):
     mz_map = create_mz_map(spec["mz"], spec_ref["mz"], tolerance=tolerance)
     vec, vec_ref = np.zeros(len(mz_map)), np.zeros(len(mz_map)) 
     
@@ -48,6 +48,18 @@ def spectral_cosine(spec, spec_ref, tolerance=DEFAULT_DALTON, transform=None, wi
     
     np.add.at(vec, bins, spec["intensity"]) #vec.put(bins, spec["intensity"])
     np.add.at(vec_ref, bins_ref, spec_ref["intensity"])   
+
+    # zero out specific mz value, e.g. precursor m/z 
+    if remove_mz:
+        for mz in mz_map.keys():
+            bin = None
+            if abs(remove_mz - mz) < tolerance:
+                bin = mz_map[mz]
+                break
+        if bin:
+            vec[bin] = 0
+            vec_ref[bin] = 0
+        
 
     if transform:
         vec=transform(vec)
