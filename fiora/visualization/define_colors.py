@@ -2,6 +2,8 @@ import matplotlib
 import matplotlib.colors
 import seaborn as sns
 from matplotlib import pyplot as plt
+import numpy as np
+from matplotlib.patches import PathPatch
 
 
 def mix_colors(c1, c2, ratio=1.0):
@@ -123,3 +125,30 @@ def set_all_font_sizes(size):
 
 def set_plt_params_to_default():
     plt.rcParams.update(plt.rcParamsDefault)
+
+
+def adjust_box_widths(g, fac):
+    for ax in g.axes:
+
+        for c in ax.get_children():
+
+            if isinstance(c, PathPatch):
+                # getting current width of box:
+                p = c.get_path()
+                verts = p.vertices
+                verts_sub = verts[:-1]
+                xmin = np.min(verts_sub[:, 0])
+                xmax = np.max(verts_sub[:, 0])
+                xmid = 0.5*(xmin+xmax)
+                xhalf = 0.5*(xmax - xmin)
+
+                # setting new width of box
+                xmin_new = xmid-fac*xhalf
+                xmax_new = xmid+fac*xhalf
+                verts_sub[verts_sub[:, 0] == xmin, 0] = xmin_new
+                verts_sub[verts_sub[:, 0] == xmax, 0] = xmax_new
+
+                # setting new width of median line
+                for l in ax.lines:
+                    if np.all(l.get_xdata() == [xmin, xmax]):
+                        l.set_xdata([xmin_new, xmax_new])

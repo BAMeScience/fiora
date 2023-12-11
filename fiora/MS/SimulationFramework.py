@@ -148,8 +148,9 @@ class SimulationFramework:
         if query_peaks:
             stats["spectral_cosine"], stats["spectral_bias"] = spectral_cosine(query_peaks, stats["sim_peaks"], with_bias=True)
             stats["spectral_sqrt_cosine"], stats["spectral_sqrt_bias"] = spectral_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True)
+            stats["spectral_sqrt_cosine_wo_prec"], stats["spectral_sqrt_bias_wo_prec"] = spectral_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, remove_mz=metabolite.get_theoretical_precursor_mz(ion_type=metabolite.metadata["precursor_mode"]), with_bias=True)
             stats["spectral_refl_cosine"], stats["spectral_refl_bias"] = spectral_reflection_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True)
-            stats["steins_dot"], stats["steins_bias"] = reweighted_dot(query_peaks, stats["sim_peaks"], int_pow=0.5, mz_pow=0.5, with_bias=True)
+            stats["steins_cosine"], stats["steins_bias"] = reweighted_dot(query_peaks, stats["sim_peaks"], int_pow=0.5, mz_pow=0.5, with_bias=True)
         return stats
     
     def simulate_all(self, df: pd.DataFrame, model: torch.nn.Module|None=None, base_attr_name: str="compiled_probsALL", suffix: str="", groundtruth=True):
@@ -160,7 +161,7 @@ class SimulationFramework:
             
             # Add additional columns to dataframe (cause of errors when new data is added to stats)
             if groundtruth:
-                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["cosine_similarity", "kl_div", "sim_peaks", "spectral_cosine", "spectral_sqrt_cosine", "spectral_refl_cosine", "spectral_bias", "spectral_sqrt_bias", "spectral_refl_bias", "steins_dot", "steins_bias", "RT_pred", "RT_dif", "CCS_pred"]])])
+                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["cosine_similarity", "kl_div", "sim_peaks", "spectral_cosine", "spectral_sqrt_cosine", "spectral_sqrt_cosine_wo_prec", "spectral_refl_cosine", "spectral_bias", "spectral_sqrt_bias", "spectral_sqrt_bias_wo_prec", "spectral_refl_bias", "steins_cosine", "steins_bias", "RT_pred", "RT_dif", "CCS_pred"]])])
             else:
                 df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["sim_peaks", "RT_pred", "CCS_pred"]])])
             for i,data in df.iterrows():

@@ -51,8 +51,8 @@ def spectral_cosine(spec, spec_ref, tolerance=DEFAULT_DALTON, transform=None, wi
 
     # zero out specific mz value, e.g. precursor m/z 
     if remove_mz:
+        bin = None
         for mz in mz_map.keys():
-            bin = None
             if abs(remove_mz - mz) < tolerance:
                 bin = mz_map[mz]
                 break
