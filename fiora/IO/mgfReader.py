@@ -1,7 +1,7 @@
 #TODO Check if first spectrum is read
 import pandas as pd
 
-def read(source, sep: str=" ", as_df=False):
+def read(source, sep: str=" ", as_df=False, debug=False):
     file = open(source, 'r')
     in_begin_ions = False
     data = []
@@ -9,9 +9,11 @@ def read(source, sep: str=" ", as_df=False):
     mz, intensity, ion = [], [], []
 
     for line in file:
+        if debug: print(line.strip())
         if line == "MASS=Monoisotopic\n": continue #TODO edge case hacky solution
         if line == '\n': continue
         if line.startswith("#"): continue
+        if line.startswith("NA#"): continue
         if line.strip() == "END IONS":
             in_begin_ions = False
             data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'annotation': ion}
