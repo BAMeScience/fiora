@@ -26,25 +26,26 @@
 #     "[M-4H]-": -1.007276 * 4
     
 #     }
-import rdkit.Chem as Chem
+from rdkit import Chem
+from rdkit.Chem import Descriptors
 
 h_minus = Chem.MolFromSmiles("[H-]") #hydrid
 h_plus = Chem.MolFromSmiles("[H+]") #h proton
 h_2 = Chem.MolFromSmiles("[HH]") #h2 
 
 ADDUCT_WEIGHTS = {
-    "[M+H]+": Chem.Descriptors.ExactMolWt(h_plus), #1.007276,
+    "[M+H]+": Descriptors.ExactMolWt(h_plus), #1.007276,
     "[M+NH4]+": 18.033823,
     "[M+Na]+": 22.989218 ,
-    "[M-H]-": -1*Chem.Descriptors.ExactMolWt(h_plus),
+    "[M-H]-": -1*Descriptors.ExactMolWt(h_plus),
     
     #
     # positvie fragment rearrangements
     #
-    "[M-H]+": -1*Chem.Descriptors.ExactMolWt(h_minus), # Double bond replacing 2 hydrogen atoms + H
+    "[M-H]+": -1*Descriptors.ExactMolWt(h_minus), # Double bond replacing 2 hydrogen atoms + H
     "[M]+": 0,
-    "[M-2H]+": -1 * Chem.Descriptors.ExactMolWt(h_2), # Loosing proton and hydrid
-    "[M-3H]+": -1 * Chem.Descriptors.ExactMolWt(h_2) - 1 * Chem.Descriptors.ExactMolWt(h_minus), # 2 Double bonds  + H
+    "[M-2H]+": -1 * Descriptors.ExactMolWt(h_2), # Loosing proton and hydrid
+    "[M-3H]+": -1 * Descriptors.ExactMolWt(h_2) - 1 * Descriptors.ExactMolWt(h_minus), # 2 Double bonds  + H
     # experimental cases
     #"[M-4H]+": -1.007276 * 4,
     #"[M-5H]+": -1.007276 * 5,
@@ -56,8 +57,8 @@ ADDUCT_WEIGHTS = {
     
     # "[M-H]-": -1*Chem.Descriptors.ExactMolWt(h_plus), # see above
     "[M]-": 0, # could be one electron too many 
-    "[M-2H]-": -1 * Chem.Descriptors.ExactMolWt(h_2),
-    "[M-3H]-": -1 * Chem.Descriptors.ExactMolWt(h_2) - 1 * Chem.Descriptors.ExactMolWt(h_plus),    
+    "[M-2H]-": -1 * Descriptors.ExactMolWt(h_2),
+    "[M-3H]-": -1 * Descriptors.ExactMolWt(h_2) - 1 * Chem.Descriptors.ExactMolWt(h_plus),    
     }
 
 
