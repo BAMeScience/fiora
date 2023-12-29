@@ -115,6 +115,7 @@ class Trainer:
             print(f'{title} Training Accuracy: {stats["acc"]:>.3f} (Loss per batch: {"NOT TRACKED"})', end='\r')
         else:
             print(f'{title} RMSE: {torch.sqrt(stats["mse"]):>.4f}', end='\r') #MSE: {stats["mse"]:>.3f};  MAE: {stats["mae"]:>.3f}
+        return stats
         
 
     def validation_loop(self, model, dataloader, loss_fn, metrics, with_RT=False,  with_CCS=False,  mask_name=None, title="Validation"):
@@ -142,6 +143,7 @@ class Trainer:
             print(f'\t{title} Accuracy: {stats["acc"]:>.3f}; Precision: {stats["prec"]:>.3f}; Recall: {stats["rec"]:>.3f} (Loss per batch: {validation_loss:>.3f})')
         else:
             print(f'\t{title} RMSE: {torch.sqrt(stats["mse"]):>.4f}') #MSE: {stats["mse"]:>.3f}; MAE: {stats["mae"]:>.3f}
+        return stats
         
     def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, mask_name="validation_mask"):
 
@@ -150,12 +152,18 @@ class Trainer:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         for e in range(epochs):
             self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_RT=with_RT, with_CCS=with_CCS)
-            if not self.only_training and ((e + 1) % val_every_n_epochs == 0):
+            is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
+            if is_val_cycle:
                 if masked_validation:
-                    self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"], with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"], with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
                 else:
-                    self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_RT=with_RT, with_CCS=with_CCS)
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_RT=with_RT, with_CCS=with_CCS)
             if scheduler:
-                scheduler.step()
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # step only after validation
+                    if is_val_cycle:
+                        scheduler.step(val_stats["mse"])
+                else:
+                    scheduler.step()
             
         print("Finished Training!")
