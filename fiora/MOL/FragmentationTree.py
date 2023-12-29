@@ -212,6 +212,13 @@ class FragmentationTree:
         # if sum_matched == 0:
         #     return matches
         
+        sum_intensity = sum([m["intensity"] for mz, m in matches.items() if m["intensity"] is not None])
+        if sum_intensity > 0:
+            for mz in matches.keys():
+                int_value = matches[mz]['intensity']
+                matches[mz]['relative_intensity'] = int_value / sum_intensity # only considered matched peaks
+        
+               
         # for mz in matches.keys():
         #     int_value = matches[mz]['intensity']
         #     matches[mz]['relative_intensity'] = int_value / sum_matched # only considered matched peaks
