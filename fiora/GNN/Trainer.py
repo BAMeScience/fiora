@@ -146,7 +146,7 @@ class Trainer:
         return stats
         
     def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, mask_name="validation_mask"):
-
+        checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": "../../checkpoint.best.pt"}
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         if not self.only_training:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
@@ -158,12 +158,17 @@ class Trainer:
                     val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"], with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
                 else:
                     val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_RT=with_RT, with_CCS=with_CCS)
+                if val_stats["mse"] < checkpoint_stats["val_loss"]:
+                    checkpoint_stats["epoch"] = e+1
+                    checkpoint_stats["val_loss"] = val_stats["mse"].tolist()
+                    model.save(checkpoint_stats["file"])
             if scheduler:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     # step only after validation
                     if is_val_cycle:
-                        scheduler.step(val_stats["mse"])
+                        scheduler.step(torch.sqrt(val_stats["mse"]))
                 else:
                     scheduler.step()
             
         print("Finished Training!")
+        return checkpoint_stats
