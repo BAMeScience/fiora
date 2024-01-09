@@ -36,6 +36,7 @@ class Metabolite:
         self.Formula = rdMolDescriptors.CalcMolFormula(self.MOL)
         self.morganFinger = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 2, nBits=1024)
         self.id = id
+        self.loss_weight = 1.0
 
     def __repr__(self):
         return f"<Metabolite: {self.SMILES}>"
@@ -64,6 +65,9 @@ class Metabolite:
     
     def set_id(self, id):
         self.id = id
+
+    def set_loss_weight(self, weight):
+        self.loss_weight = weight
 
     def get_theoretical_precursor_mz(self, ion_type: str):
         return self.ExactMolWeight + ADDUCT_WEIGHTS[ion_type]
@@ -278,8 +282,11 @@ class Metabolite:
             'coverage': (self.compiled_counts.sum().tolist() / 2.0) / sum(int_list),
             'coverage_wo_prec': (self.edge_break_count.sum().tolist() / 2.0) / sum(int_list),
             'precursor_prob': self.precursor_count.tolist() / (self.compiled_counts.sum().tolist() / 2.0) if (self.compiled_counts.sum().tolist() / 2.0) > 0 else 0.0,
+            'num_peaks': len(mz_fragments),
             'num_peak_matches': len(self.peak_matches),
+            'percent_peak_matches': len(self.peak_matches) / len(mz_fragments),
             'num_peak_matches_filtered': sum([match["relative_intensity"] > 0.001 for mz, match in self.peak_matches.items()]),
+            'percent_peak_matches_filtered': sum([match["relative_intensity"] > 0.001 for mz, match in self.peak_matches.items()]) / len(mz_fragments),
             'num_non_precursor_matches': sum([(None not in match["edges"]) for mz, match in self.peak_matches.items()]),
             'num_peak_match_conflicts': sum([len(match["edges"]) > 1 for mz, match in self.peak_matches.items()]),
             'num_fragment_conflicts': sum([len(match["fragments"]) > 1 for mz, match in self.peak_matches.items()]),
@@ -324,6 +331,7 @@ class Metabolite:
                 compiled_validation_maskALL = self.compiled_validation_maskALL,
                 
                 group_id=self.id,
+                weight=self.loss_weight,
                 
                 # additional information
                 is_node_aromatic=self.is_node_aromatic,
