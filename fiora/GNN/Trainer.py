@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from typing import Literal
 
 from fiora.GNN.Datasets import collate_graph_batch, collate_graph_edge_batch
-
+from fiora.GNN.Losses import WeightedMSE
 
 '''
 GNN Trainer
@@ -76,7 +76,7 @@ class Trainer:
             y[edge_graph_map == i] = self.softmax(y[edge_graph_map == i])
         return 2. * y # times 2, since edges are undirected and therefore doubled
     
-    def training_loop(self, model, dataloader, optimizer, loss_fn, metrics, with_RT=False,  with_CCS=False, title=""):
+    def training_loop(self, model, dataloader, optimizer, loss_fn, metrics, with_weights=False, with_RT=False,  with_CCS=False, title=""):
         training_loss = 0
         metrics.increment()
                 
@@ -86,19 +86,27 @@ class Trainer:
             # Feed forward
             model.train()
             
-            y_pred = model(batch, with_RT=with_RT, with_CCS=with_CCS)            
-            loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag]) # with logits
-            
+            y_pred = model(batch, with_RT=with_RT, with_CCS=with_CCS)
+            kwargs={}
+            if with_weights:
+                kwargs={"weight": batch["weight_tensor"]}
+             
+            loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # with logits
+            metrics.update(y_pred["fragment_probs"], batch[self.y_tag])
+
+            # Add RT and CCS to loss
             if with_RT:
-                loss_rt = loss_fn(y_pred["rt"][batch["retention_mask"]], batch["retention_time"][batch["retention_mask"]])  
+                if with_weights:
+                    kwargs["weight"] = batch["weight"][batch["retention_mask"]]
+                loss_rt = loss_fn(y_pred["rt"][batch["retention_mask"]], batch["retention_time"][batch["retention_mask"]], **kwargs)  
                 loss = loss + loss_rt
             
             if with_CCS:
-                loss_ccs = loss_fn(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]])  
+                if with_weights:
+                    kwargs["weight"] = batch["weight"][batch["ccs_mask"]]
+                loss_ccs = loss_fn(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs)  
                 loss = loss + loss_ccs
 
-            
-            metrics.update(y_pred["fragment_probs"], batch[self.y_tag])
                 
             # Backpropagate
             optimizer.zero_grad()
@@ -118,8 +126,7 @@ class Trainer:
         return stats
         
 
-    def validation_loop(self, model, dataloader, loss_fn, metrics, with_RT=False,  with_CCS=False,  mask_name=None, title="Validation"):
-        validation_loss = 0
+    def validation_loop(self, model, dataloader, loss_fn, metrics, with_weights=False, with_RT=False,  with_CCS=False,  mask_name=None, title="Validation"):
         metrics.increment()
         with torch.no_grad():
             for id, batch in enumerate(dataloader):
@@ -131,33 +138,38 @@ class Trainer:
                         loss = loss_fn(y_pred["fragment_probs"][batch[mask_name]], batch[self.y_tag][batch[mask_name]])
                         metrics.update(y_pred["fragment_probs"][batch[mask_name]], batch[self.y_tag][batch[mask_name]])
                     else:
-                        loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag])
+                        kwargs={}
+                        if with_weights:
+                            kwargs={"weight": batch["weight_tensor"]}
+                        loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
                         metrics.update(y_pred["fragment_probs"], batch[self.y_tag])
-                    validation_loss += loss.item()
 
-
+        # End of Validation cycle
         stats = metrics.compute()
-        validation_loss /= len(dataloader)
-
-        if self.problem_type == "classification":
-            print(f'\t{title} Accuracy: {stats["acc"]:>.3f}; Precision: {stats["prec"]:>.3f}; Recall: {stats["rec"]:>.3f} (Loss per batch: {validation_loss:>.3f})')
-        else:
-            print(f'\t{title} RMSE: {torch.sqrt(stats["mse"]):>.4f}') #MSE: {stats["mse"]:>.3f}; MAE: {stats["mae"]:>.3f}
+        print(f'\t{title} RMSE: {torch.sqrt(stats["mse"]):>.4f}') #MSE: {stats["mse"]:>.3f}; MAE: {stats["mae"]:>.3f}
         return stats
         
+        
+    # Training function
     def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, mask_name="validation_mask"):
+        
         checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": "../../checkpoint.best.pt"}
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         if not self.only_training:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
+        # if isinstance(loss_fn, WeightedMSE):
+        #     for data_split in ["train", "val", "masked_val", "test"]:
+        #         self.metrics[data_split]["mse"] = WeightedMSE() 
+        
+        # Main loop
         for e in range(epochs):
-            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_RT=with_RT, with_CCS=with_CCS)
+            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=isinstance(loss_fn, WeightedMSE), with_RT=with_RT, with_CCS=with_CCS)
             is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
             if is_val_cycle:
                 if masked_validation:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"], with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=isinstance(loss_fn, WeightedMSE), with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
                 else:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_RT=with_RT, with_CCS=with_CCS)
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=isinstance(loss_fn, WeightedMSE), with_RT=with_RT, with_CCS=with_CCS)
                 if val_stats["mse"] < checkpoint_stats["val_loss"]:
                     checkpoint_stats["epoch"] = e+1
                     checkpoint_stats["val_loss"] = val_stats["mse"].tolist()

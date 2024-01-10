@@ -331,7 +331,9 @@ class Metabolite:
                 compiled_validation_maskALL = self.compiled_validation_maskALL,
                 
                 group_id=self.id,
-                weight=self.loss_weight,
+                #weight=self.loss_weight, 
+                weight = torch.tensor([self.loss_weight]).unsqueeze(dim=-1),
+                weight_tensor=torch.full(self.compiled_probsALL.shape, self.loss_weight),
                 
                 # additional information
                 is_node_aromatic=self.is_node_aromatic,
