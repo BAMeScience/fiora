@@ -34,7 +34,7 @@ class Metabolite:
         
         self.ExactMolWeight = Descriptors.ExactMolWt(self.MOL)
         self.Formula = rdMolDescriptors.CalcMolFormula(self.MOL)
-        self.morganFinger = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 2, nBits=1024)
+        self.morganFinger = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 2, nBits=2048) #1024
         self.id = id
         self.loss_weight = 1.0
 
