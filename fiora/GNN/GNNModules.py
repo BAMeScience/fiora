@@ -177,6 +177,16 @@ class GNNCompiler(torch.nn.Module):
         self.set_transform("double_softmax")
         self.model_params = model_params
     
+    def freeze_submodule(self, submodule_name: str):
+        module = getattr(self, submodule_name)
+        for param in module.parameters():
+            param.requires_grad = False
+    
+    def unfreeze_submodule(self, submodule_name: str):
+        module = getattr(self, submodule_name)
+        for param in module.parameters():
+            param.requires_grad = True
+    
     def set_transform(self, transformation: Literal["softmax", "double_softmax", "off"]):
         self.softmax = torch.nn.Softmax(dim=0)
         if transformation == "double_softmax":
