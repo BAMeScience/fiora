@@ -7,14 +7,14 @@ from sklearn.model_selection import train_test_split
 from typing import Literal
 
 from fiora.GNN.Datasets import collate_graph_batch, collate_graph_edge_batch
-from fiora.GNN.Losses import WeightedMSE
+from fiora.GNN.Losses import WeightedMSELoss
 
 '''
 GNN Trainer
 '''
 
 class Trainer:
-    def __init__(self, data, train_val_split: float= 0.8, split_by_group: bool=False, only_training: bool=False, train_keys=None, val_keys=None, y_tag: str="y", problem_type: Literal["classification", "regression", "softmax_regression"]="classification", library: Literal["standard", "geometric"]="geometric", num_workers: int=0, seed: int=42, device: str="cpu"):
+    def __init__(self, data, train_val_split: float= 0.8, split_by_group: bool=False, only_training: bool=False, train_keys=None, val_keys=None, y_tag: str="y", metric_dict=None, problem_type: Literal["classification", "regression", "softmax_regression"]="classification", library: Literal["standard", "geometric"]="geometric", num_workers: int=0, seed: int=42, device: str="cpu"):
         
         self.only_training = only_training
         if only_training:
@@ -42,19 +42,28 @@ class Trainer:
         self.y_tag = y_tag
         self.problem_type = problem_type
         self.num_workers = num_workers
-        self.metrics = {
-            data_split: MetricTracker(MetricCollection({
-                    'acc': Accuracy("binary", num_classes=1), 
-                    'prec': Precision('binary', num_classes=1),
-                    'rec': Recall('binary', num_classes=1)
-                }) if problem_type=="classification" else MetricCollection({
-                        'mse': MeanSquaredError(),
-                        'mae': MeanAbsoluteError(),
-                        "r2": R2Score()
-                    })
-                ).to(device)
-            for data_split in ["train", "val", "masked_val", "test"]
-        }
+        
+        if metric_dict:
+            self.metrics = {
+                data_split: MetricTracker(MetricCollection({
+                        t: M() for t,M in metric_dict.items()
+                    })).to(device) # TODO ??????
+                for data_split in ["train", "val", "masked_val", "test"]
+            }
+        else:
+            self.metrics = {
+                data_split: MetricTracker(MetricCollection({
+                        'acc': Accuracy("binary", num_classes=1), 
+                        'prec': Precision('binary', num_classes=1),
+                        'rec': Recall('binary', num_classes=1)
+                    }) if problem_type=="classification" else MetricCollection({
+                            'mse': MeanSquaredError(),
+                            'mae': MeanAbsoluteError(),
+                            "r2": R2Score()
+                        })
+                    ).to(device)
+                for data_split in ["train", "val", "masked_val", "test"]
+            }
         self.loader_base = DataLoader
         if library=="geometric":
             self.loader_base = geom_loader.DataLoader
@@ -92,7 +101,7 @@ class Trainer:
                 kwargs={"weight": batch["weight_tensor"]}
              
             loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # with logits
-            metrics.update(y_pred["fragment_probs"], batch[self.y_tag])
+            metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
 
             # Add RT and CCS to loss
             if with_RT:
@@ -142,7 +151,7 @@ class Trainer:
                         if with_weights:
                             kwargs={"weight": batch["weight_tensor"]}
                         loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
-                        metrics.update(y_pred["fragment_probs"], batch[self.y_tag])
+                        metrics.update(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
 
         # End of Validation cycle
         stats = metrics.compute()
@@ -151,9 +160,9 @@ class Trainer:
         
         
     # Training function
-    def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, mask_name="validation_mask"):
+    def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, mask_name="validation_mask", tag=""):
         
-        checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": "../../checkpoint.best.pt"}
+        checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": f"../../checkpoint_{tag}.best.pt"}
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         if not self.only_training:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
@@ -163,13 +172,13 @@ class Trainer:
         
         # Main loop
         for e in range(epochs):
-            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=isinstance(loss_fn, WeightedMSE), with_RT=with_RT, with_CCS=with_CCS)
+            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS)
             is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
             if is_val_cycle:
                 if masked_validation:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=isinstance(loss_fn, WeightedMSE), with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
                 else:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=isinstance(loss_fn, WeightedMSE), with_RT=with_RT, with_CCS=with_CCS)
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS)
                 if val_stats["mse"] < checkpoint_stats["val_loss"]:
                     checkpoint_stats["epoch"] = e+1
                     checkpoint_stats["val_loss"] = val_stats["mse"].tolist()
