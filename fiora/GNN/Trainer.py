@@ -85,7 +85,7 @@ class Trainer:
             y[edge_graph_map == i] = self.softmax(y[edge_graph_map == i])
         return 2. * y # times 2, since edges are undirected and therefore doubled
     
-    def training_loop(self, model, dataloader, optimizer, loss_fn, metrics, with_weights=False, with_RT=False,  with_CCS=False, title=""):
+    def training_loop(self, model, dataloader, optimizer, loss_fn, metrics, with_weights=False, with_RT=False, with_CCS=False, rt_metric=False, title=""):
         training_loss = 0
         metrics.increment()
                 
@@ -101,7 +101,7 @@ class Trainer:
                 kwargs={"weight": batch["weight_tensor"]}
              
             loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # with logits
-            metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
+            if not rt_metric: metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
 
             # Add RT and CCS to loss
             if with_RT:
@@ -116,7 +116,11 @@ class Trainer:
                 loss_ccs = loss_fn(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs)  
                 loss = loss + loss_ccs
 
+            if rt_metric:
+                metrics(y_pred["rt"][batch["retention_mask"]], batch["retention_time"][batch["retention_mask"]], **kwargs) # call update
+                metrics(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs) # call update
                 
+                    
             # Backpropagate
             optimizer.zero_grad()
             loss.backward()
@@ -135,7 +139,7 @@ class Trainer:
         return stats
         
 
-    def validation_loop(self, model, dataloader, loss_fn, metrics, with_weights=False, with_RT=False,  with_CCS=False,  mask_name=None, title="Validation"):
+    def validation_loop(self, model, dataloader, loss_fn, metrics, with_weights=False, with_RT=False,  with_CCS=False, rt_metric=False,  mask_name=None, title="Validation"):
         metrics.increment()
         with torch.no_grad():
             for id, batch in enumerate(dataloader):
@@ -151,7 +155,12 @@ class Trainer:
                         if with_weights:
                             kwargs={"weight": batch["weight_tensor"]}
                         loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
-                        metrics.update(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
+                        if not rt_metric:
+                            metrics.update(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
+                        if rt_metric:
+                            metrics(y_pred["rt"][batch["retention_mask"]], batch["retention_time"][batch["retention_mask"]], **kwargs) # call update
+                            metrics(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs) # call update
+                        
 
         # End of Validation cycle
         stats = metrics.compute()
@@ -160,7 +169,7 @@ class Trainer:
         
         
     # Training function
-    def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, mask_name="validation_mask", tag=""):
+    def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, rt_metric=False, mask_name="validation_mask", tag=""):
         
         checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": f"../../checkpoint_{tag}.best.pt"}
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
@@ -172,13 +181,13 @@ class Trainer:
         
         # Main loop
         for e in range(epochs):
-            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS)
+            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
             is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
             if is_val_cycle:
                 if masked_validation:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.")
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.", rt_metric=rt_metric)
                 else:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS)
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
                 if val_stats["mse"] < checkpoint_stats["val_loss"]:
                     checkpoint_stats["epoch"] = e+1
                     checkpoint_stats["val_loss"] = val_stats["mse"].tolist()
@@ -193,3 +202,4 @@ class Trainer:
             
         print("Finished Training!")
         return checkpoint_stats
+    
