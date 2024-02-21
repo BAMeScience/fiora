@@ -9,7 +9,7 @@ from rdkit.Chem import Descriptors
 from rdkit.Chem import rdMolDescriptors
 from rdkit import DataStructs
 from torch_geometric.data import Data
-
+from typing import Literal
 
 from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, ADDUCT_WEIGHTS
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
@@ -35,6 +35,7 @@ class Metabolite:
         self.ExactMolWeight = Descriptors.ExactMolWt(self.MOL)
         self.Formula = rdMolDescriptors.CalcMolFormula(self.MOL)
         self.morganFinger = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 2, nBits=2048) #1024
+        self.morganFinger3 = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 3, nBits=2048) #1024
         self.id = id
         self.loss_weight = 1.0
 
@@ -75,9 +76,12 @@ class Metabolite:
     def get_morganFinger(self):
         return self.morganFinger
                 
-    def tanimoto_similarity(self, __o: object):
-        return DataStructs.TanimotoSimilarity(self.get_morganFinger(), __o.get_morganFinger())
-        
+    def tanimoto_similarity(self, __o: object, finger: Literal["morgan2", "morgan3"]="morgan2"):
+        if finger == "morgan2":
+            return DataStructs.TanimotoSimilarity(self.get_morganFinger(), __o.get_morganFinger())
+        if finger == "morgan3":
+            return DataStructs.TanimotoSimilarity(self.morganFinger3, __o.morganFinger3)
+        raise ValueError(f"Unknown type of fingerprint: {finger}. Cannot compare Metabolites.")
     
     # draw
     def draw(self, ax=plt):
