@@ -10,5 +10,6 @@ def write_msp(df, path, write_header=True, headers=["Name", "Precursor_type", "S
                 for key in headers:
                     outfile.write(key + ": " + str(df.loc[x][key]) + "\n")
             d = df.loc[x]
+            outfile.write(f"Num peaks: {len(peaks['mz'])}\n")
             for i in range(len(peaks['mz'])):
                 outfile.write(str(peaks['mz'][i]) + "\t" + str(peaks['intensity'][i]) + "\n")

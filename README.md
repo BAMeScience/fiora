@@ -48,4 +48,4 @@ See example [input file](examples/example_input.csv).
 
 #### Output format
 
-Currently, only the mgf format is supported.
+Currently, only msp and mgf formats are supported.

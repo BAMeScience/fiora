@@ -28,7 +28,7 @@ def parse_args():
     
     parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="predict retention time", default=False)
     parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=True)
-    parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=True)
+    parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=False)
     args = parser.parse_args()
 
     return args
@@ -111,23 +111,30 @@ def main():
     df["peaks"] = df["sim_peaks"]
     df["RETENTIONTIME"] = df["RT_pred"] 
     df["CCS"] = df["CCS_pred"] 
-    df["COMMENT"] = "\"In silico generated spectrum by Fiora pre-release version (v0.0.0 - version not yet existent)\""
+    df["COMMENT"] = "\"In silico generated spectrum by Fiora (pre-release version v0.0.0)\""
     
     # Write output file
     if args.output.endswith(".msp"):
-        raise NotImplementedError("MSP Format coming soon ...")
-        #mspWriter.write_msp(df, path=args.output, write_header=True, headers=["Name"])
-    elif args.output.endswith(".mgf"):
-        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE", "COMMENT"]
+        df["Collision_energy"] = df["CE"]
+        df["Comment"] = df["COMMENT"]
+        headers=["Name", "SMILES", "Precursor_type", "Instrument_type", "Collision_energy"]
         if args.rt: headers.append("RETENTIONTIME")
         if args.ccs: headers.append("CCS")
+        headers.append("Comment")
+        mspWriter.write_msp(df, path=args.output, write_header=True, headers=headers)
+    elif args.output.endswith(".mgf"):
+        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
+        if args.rt: headers.append("RETENTIONTIME")
+        if args.ccs: headers.append("CCS")
+        headers.append("COMMENT")
         mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
     else:
         print(f"Warning: Unknown output format {args.output}. Writing results to {args.output}.mgf instead.")
         args.output = args.output + ".mgf"
-        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE", "COMMENT"]
+        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
         if args.rt: headers.append("RETENTIONTIME")
         if args.ccs: headers.append("CCS")
+        headers.append("COMMENT")
         mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
 
     print("Finished prediction.")
