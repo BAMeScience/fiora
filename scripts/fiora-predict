@@ -48,8 +48,8 @@ def build_metabolites(df):
     
     # Set feature encoder up
     # TODO soft-code
-    CE_upper_limit = 80.0
-    weight_upper_limit = 800.0
+    CE_upper_limit = 100.0
+    weight_upper_limit = 1000.0
 
     node_encoder = AtomFeatureEncoder(feature_list=["symbol", "num_hydrogen", "ring_type"])
     bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
