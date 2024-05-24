@@ -9,7 +9,7 @@ Users should exercise caution.
 
 ## Requirements
 
-Developed and tested tested with the following system and version:
+Developed and tested with the following systems and versions:
 
 * Debian GNU/Linux 11 (bullseye)
 * Python 3.10.8
@@ -18,12 +18,18 @@ Developed and tested tested with the following system and version:
 
 ## Installation
 
+Installation guide of the Fiora python package (under 10 minutes):
+
+Clone the project folder 
+
+    git clone https://github.com/BAMeScience/fiora.git
+
 (Optional: Create a new conda environment)
 
     conda create -n fiora python=3.10.8
     conda activate fiora
 
-Cd into this directory. Then, install package by using the setup.py 
+Change into the project directory (*cd fiora*). Then, install the package by using the setup.py via
 
     pip install .
 
@@ -48,4 +54,12 @@ See example [input file](examples/example_input.csv).
 
 #### Output format
 
-Currently, only msp and mgf formats are supported.
+Predicted spectra are provided in standard *msp* and *mgf* formats.
+
+#### Example usage
+
+Run the fiora-predict from within this directory
+
+    fiora-predict -i examples/example_input.csv  -o examples/example_spec.mgf
+
+Note that a default model is currently not implemented. We will provide default open-source model weights in the near future. The predictions should only take a few seconds. Specify a GPU device by using the *--dev* option (e.g., *--dev cuda:0*) for significant speed up.  
