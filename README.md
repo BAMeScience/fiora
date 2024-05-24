@@ -58,8 +58,8 @@ Predicted spectra are provided in standard *msp* and *mgf* formats.
 
 #### Example usage
 
-Run the fiora-predict from within the directory
+Run the fiora-predict from within this directory
 
     fiora-predict -i examples/example_input.csv  -o examples/example_spec.mgf
 
-Note that a default model is currently not implemented. We will provide default open-source model weights in the near future. The predictions should only take a few seconds. Specify a GPU device by using the *--dev* option (e.g., --dev cuda:0) for significant speed up.  
+Note that a default model is currently not implemented. We will provide default open-source model weights in the near future. The predictions should only take a few seconds. Specify a GPU device by using the *--dev* option (e.g., *--dev cuda:0*) for significant speed up.  
