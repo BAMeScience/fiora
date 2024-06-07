@@ -58,8 +58,8 @@ class Trainer:
                         'rec': Recall('binary', num_classes=1)
                     }) if problem_type=="classification" else MetricCollection({
                             'mse': MeanSquaredError(),
-                            'mae': MeanAbsoluteError(),
-                            "r2": R2Score()
+                            'mae': MeanAbsoluteError()#,
+                            #"r2": R2Score()
                         })
                     ).to(device)
                 for data_split in ["train", "val", "masked_val", "test"]
