@@ -51,7 +51,7 @@ class SimulationFramework:
         return
 
     
-    def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity=0.01, merge_fragment_duplicates=True):
+    def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity=0.001, merge_fragment_duplicates=True):
 
         if not self.mode_mapper:
             mode_mapper = metabolite.mode_mapper
