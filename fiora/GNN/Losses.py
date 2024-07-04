@@ -4,6 +4,9 @@ from torchmetrics import Metric
 from torchmetrics.utilities import dim_zero_cat
 
 
+###
+# Weighted Mean Squared Error    
+###
 class WeightedMSELoss(torch.nn.Module):
     def __init__(self):
         super(WeightedMSELoss, self).__init__()
@@ -24,8 +27,31 @@ class WeightedMSEMetric(Metric):
 
     def compute(self) -> Tensor:
         return self.sum / self.numel
-        
-    
+
+###
+# Weighted Mean Absolute Error    
+###
+class WeightedMAELoss(torch.nn.Module):
+    def __init__(self):
+        super(WeightedMAELoss, self).__init__()
+
+    def forward(self, input, target, weight):
+        loss = (weight * (input - target))
+        return loss.mean()
+
+class WeightedMAEMetric(Metric):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.add_state("sum", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: Tensor, target: Tensor, weight: Tensor) -> None:
+        self.sum += (weight * (preds - target)).sum()
+        self.numel += target.numel()
+
+    def compute(self) -> Tensor:
+        return self.sum / self.numel
+
   
   # SUFFERS FROM MEMORY LEAK  
 # class WeightedMSEMetric(Metric):
