@@ -26,6 +26,8 @@ def set_custom_annotation():
     # Set peak color for custom ion
     sup.colors["w"] = lightblue_hex
 
+def set_default_peak_color(color):
+    sup.colors[None] = color
 
 def annotate_and_plot(spectrum, mz_fragments, with_grid: bool=False, ppm_tolerance: int=100, ax=None):
     
@@ -48,8 +50,10 @@ def annotate_and_plot(spectrum, mz_fragments, with_grid: bool=False, ppm_toleran
 
     return ax
 
-def plot_spectrum(spectrum: Dict, second_spectrum: Dict|None=None, highlight_matches: bool=False, facet_plot=False, ppm_tolerance: int=100, charge=0, title=None, out=None, with_grid=False, ax=None, show=False):
+def plot_spectrum(spectrum: Dict, second_spectrum: Dict|None=None, highlight_matches: bool=False, facet_plot=False, ppm_tolerance: int=100, charge=0, title=None, out=None, with_grid=False, ax=None, show=False, color=None):
     top_spectrum = sus.MsmsSpectrum("None", 0, charge, spectrum['peaks']['mz'], spectrum['peaks']['intensity'])
+    if color:
+        set_default_peak_color(color)
     if not ax:
         fig, ax = plt.subplots(figsize=(12, 6))
     # spectrum.set_mz_range(min_mz=0, max_mz=2000)
