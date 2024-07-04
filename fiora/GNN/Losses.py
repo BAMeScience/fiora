@@ -36,7 +36,7 @@ class WeightedMAELoss(torch.nn.Module):
         super(WeightedMAELoss, self).__init__()
 
     def forward(self, input, target, weight):
-        loss = (weight * (input - target))
+        loss = (weight * torch.abs(input - target))
         return loss.mean()
 
 class WeightedMAEMetric(Metric):
@@ -46,7 +46,7 @@ class WeightedMAEMetric(Metric):
         self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: Tensor, target: Tensor, weight: Tensor) -> None:
-        self.sum += (weight * (preds - target)).sum()
+        self.sum += (weight * torch.abs(preds - target)).sum()
         self.numel += target.numel()
 
     def compute(self) -> Tensor:
