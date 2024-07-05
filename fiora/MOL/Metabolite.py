@@ -250,8 +250,9 @@ class Metabolite:
             self.edge_count_matrix[forward_idx, col] = values['intensity']
             col = (col + len(self.mode_mapper)) % (2*len(self.mode_mapper)) #to the other side of the break
             self.edge_count_matrix[backward_idx, col] = values['intensity']
-            
-          
+        
+    
+        
         # Compile probability vectors  
         self.compiled_counts = torch.cat([self.edge_break_count.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
         self.compiled_probs = 2 * self.compiled_counts / torch.sum(self.compiled_counts)
@@ -286,6 +287,7 @@ class Metabolite:
             'coverage': (self.compiled_counts.sum().tolist() / 2.0) / sum(int_list),
             'coverage_wo_prec': (self.edge_break_count.sum().tolist() / 2.0) / sum(int_list),
             'precursor_prob': self.precursor_count.tolist() / (self.compiled_counts.sum().tolist() / 2.0) if (self.compiled_counts.sum().tolist() / 2.0) > 0 else 0.0,
+            'precursor_raw_prob': self.precursor_count.tolist() / sum(int_list), 
             'num_peaks': len(mz_fragments),
             'num_peak_matches': len(self.peak_matches),
             'percent_peak_matches': len(self.peak_matches) / len(mz_fragments),

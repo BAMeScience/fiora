@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from typing import Literal
 
 from fiora.GNN.Datasets import collate_graph_batch, collate_graph_edge_batch
-from fiora.GNN.Losses import WeightedMSELoss
+from fiora.GNN.Losses import WeightedMSELoss, WeightedMAELoss
 
 '''
 GNN Trainer
@@ -58,8 +58,8 @@ class Trainer:
                         'rec': Recall('binary', num_classes=1)
                     }) if problem_type=="classification" else MetricCollection({
                             'mse': MeanSquaredError(),
-                            'mae': MeanAbsoluteError(),
-                            "r2": R2Score()
+                            'mae': MeanAbsoluteError()#,
+                            #"r2": R2Score()
                         })
                     ).to(device)
                 for data_split in ["train", "val", "masked_val", "test"]
@@ -178,16 +178,17 @@ class Trainer:
         # if isinstance(loss_fn, WeightedMSE):
         #     for data_split in ["train", "val", "masked_val", "test"]:
         #         self.metrics[data_split]["mse"] = WeightedMSE() 
+        using_weighted_loss_func = isinstance(loss_fn, WeightedMSELoss) | isinstance(loss_fn, WeightedMAELoss)
         
         # Main loop
         for e in range(epochs):
-            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
+            self.training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
             is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
             if is_val_cycle:
                 if masked_validation:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.", rt_metric=rt_metric)
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.", rt_metric=rt_metric)
                 else:
-                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=isinstance(loss_fn, WeightedMSELoss), with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
+                    val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
                 if val_stats["mse"] < checkpoint_stats["val_loss"]:
                     checkpoint_stats["epoch"] = e+1
                     checkpoint_stats["val_loss"] = val_stats["mse"].tolist()
