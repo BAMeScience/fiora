@@ -90,8 +90,8 @@ def main():
             print(f"Warning: Failed loading the model {args.model}. Fallback: Loading the model from state dictionary.")
             model = GNNCompiler.load_from_state_dict(args.model)
             print("Model loaded from state dict without further errors.")
-        except:
-            print("Error: Failed loading from state dict.")
+        except Exception as e:
+            print(f"Error: Failed loading from state dict. Caused by: {e}.")
             exit(1)
         
     model.eval()
