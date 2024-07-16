@@ -272,7 +272,9 @@ class GNNCompiler(torch.nn.Module):
 
         return model
     
-    def save(self, PATH: str) -> None:
+    def save(self, PATH: str, dev: str="cpu") -> None:
+        
+        self.to(dev)
         with open(PATH, 'wb') as f:
             dill.dump(self, f)
         
