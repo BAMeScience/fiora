@@ -269,9 +269,24 @@ class Metabolite:
         self.compiled_probs6 = 2 * self.compiled_counts6 / torch.sum(self.compiled_counts6)
 
         # select all columns
+        # COMPILED VECTORS COUNTS & PROBABILITIES FOR END-TO-END PREDICTION! Default is compiled_probsALL
         self.compiled_countsALL = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
         self.compiled_probsALL = 2 * self.compiled_countsALL / torch.sum(self.compiled_countsALL)
         
+        # SQRT transformation
+        self.compiled_countsSQRT = torch.sqrt(self.compiled_countsALL)
+        self.compiled_probsSQRT = torch.sqrt(self.compiled_probsALL)
+        
+        # Deemphasized precursor (DEPRE)
+        self.compiled_countsDEPRE = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1) / 2.0, self.precursor_count.unsqueeze(dim=-1) / 2.0])
+        self.compiled_probsDEPRE = 2 * self.compiled_countsALL / torch.sum(self.compiled_countsALL)
+        
+        # Precursor removal
+        self.compiled_counts_wo_prec = torch.cat([self.edge_count_matrix.flatten(), torch.zeros(1), torch.zeros(1)])
+        self.compiled_probs_wo_prec = 2 * self.compiled_countsALL / torch.sum(self.compiled_counts_wo_prec)
+        
+        
+        # MASKS
         self.compiled_validation_mask = torch.cat([self.is_edge_not_in_ring.bool().squeeze(), torch.tensor([True, True], dtype=bool)], dim=-1)
         self.compiled_validation_mask2 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 2), torch.tensor([True, True], dtype=bool)], dim=-1)
         self.compiled_validation_mask6 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 6), torch.tensor([True, True], dtype=bool)], dim=-1)
