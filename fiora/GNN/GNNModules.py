@@ -274,9 +274,12 @@ class GNNCompiler(torch.nn.Module):
     
     def save(self, PATH: str, dev: str="cpu") -> None:
         
+        prev_device = next(self.parameters()).device
+        
+        # Set device to cpu for saving
         self.to(dev)
         with open(PATH, 'wb') as f:
-            dill.dump(self, f)
+            dill.dump(self.to(dev), f)
         
         # Save state_dict and parameters as backup
         PATH = '.'.join(PATH.split('.')[:-1]) + '_params.json'
@@ -284,4 +287,7 @@ class GNNCompiler(torch.nn.Module):
             json.dump(self.model_params, fp)
 
         PATH = PATH.replace("_params.json", "_state.pt")
-        torch.save(self.state_dict(), PATH)
+        torch.save(self.to(dev).state_dict(), PATH)
+        
+        #Reset to previous device
+        self.to(prev_device)
