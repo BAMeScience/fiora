@@ -172,6 +172,7 @@ class Trainer:
     def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, rt_metric=False, mask_name="validation_mask", tag=""):
         
         checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": f"../../checkpoint_{tag}.best.pt"}
+        model.model_params["training_label"] = self.y_tag
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         if not self.only_training:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)

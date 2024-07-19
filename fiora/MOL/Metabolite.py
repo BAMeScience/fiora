@@ -275,15 +275,15 @@ class Metabolite:
         
         # SQRT transformation
         self.compiled_countsSQRT = torch.sqrt(self.compiled_countsALL)
-        self.compiled_probsSQRT = torch.sqrt(self.compiled_probsALL)
+        self.compiled_probsSQRT = 2 * self.compiled_countsSQRT / torch.sum(self.compiled_countsSQRT)
         
         # Deemphasized precursor (DEPRE)
         self.compiled_countsDEPRE = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1) / 2.0, self.precursor_count.unsqueeze(dim=-1) / 2.0])
-        self.compiled_probsDEPRE = 2 * self.compiled_countsALL / torch.sum(self.compiled_countsALL)
+        self.compiled_probsDEPRE = 2 * self.compiled_countsDEPRE / torch.sum(self.compiled_countsDEPRE)
         
         # Precursor removal
         self.compiled_counts_wo_prec = torch.cat([self.edge_count_matrix.flatten(), torch.zeros(1), torch.zeros(1)])
-        self.compiled_probs_wo_prec = 2 * self.compiled_countsALL / torch.sum(self.compiled_counts_wo_prec)
+        self.compiled_probs_wo_prec = 2 * self.compiled_counts_wo_prec / torch.sum(self.compiled_counts_wo_prec)
         
         
         # MASKS

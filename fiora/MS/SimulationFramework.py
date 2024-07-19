@@ -51,7 +51,7 @@ class SimulationFramework:
         return
 
     
-    def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity=0.001, merge_fragment_duplicates=True):
+    def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity=0.001, merge_fragment_duplicates=True, transform_prob: str="None"):
 
         if not self.mode_mapper:
             mode_mapper = metabolite.mode_mapper
@@ -117,6 +117,11 @@ class SimulationFramework:
                         sim_peaks["mz"].append(mz)
                         sim_peaks["intensity"].append(intensity)
                         sim_peaks["annotation"].append(annotation)    
+        
+        if transform_prob == "square":
+            max_prob = max(sim_peaks["intensity"])**2
+            for i in range(len(sim_peaks["intensity"])):
+                sim_peaks["intensity"][i] == sim_peaks["intensity"][i]**2 / max_prob
                 
         return sim_peaks
     
@@ -132,7 +137,8 @@ class SimulationFramework:
             stats["CCS_pred"] = prediction["ccs"].squeeze().tolist()
             
         setattr(metabolite, base_attr_name + "_pred", prediction["fragment_probs"])
-        stats["sim_peaks"] = self.simulate_spectrum(metabolite, base_attr_name + "_pred", precursor_mode=metabolite.metadata["precursor_mode"])
+        transform_prob = "square" if ("training_label" in model.model_params and model.model_params["training_label"] == "compiled_probsSQRT") else "None"
+        stats["sim_peaks"] = self.simulate_spectrum(metabolite, base_attr_name + "_pred", precursor_mode=metabolite.metadata["precursor_mode"], transform_prob=transform_prob)
         
         
         # Score performance if groundtruth is available
