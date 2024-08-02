@@ -36,6 +36,7 @@ class Metabolite:
         self.Formula = rdMolDescriptors.CalcMolFormula(self.MOL)
         self.morganFinger = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 2, nBits=2048) #1024
         self.morganFinger3 = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 3, nBits=2048) #1024
+        self.morganFingerCountOnes = self.morganFinger.GetNumOnBits()
         self.id = id
         self.loss_weight = 1.0
 
@@ -47,6 +48,9 @@ class Metabolite:
 
     def __eq__(self, __o: object) -> bool:
         if self.ExactMolWeight != __o.ExactMolWeight:
+            return False
+        # Compare the number of bits=1 to prefilter mismatching Metabolites, since it is a much faster comparison
+        if self.morganFingerCountOnes != __o.morganFingerCountOnes: 
             return False
         return self.get_morganFinger() == __o.get_morganFinger()
 
