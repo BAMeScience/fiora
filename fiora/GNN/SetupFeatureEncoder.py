@@ -3,13 +3,16 @@ import torch
 import numpy as np
 
 class SetupFeatureEncoder:
-    def __init__(self, feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"]):
+    def __init__(self, feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite: dict|None=None):
         self.encoding_dim = 0
         self.feature_list = feature_list
         self.categorical_sets = {
             "instrument": ["HCD", "Q-TOF", "IT-FT/ion trap with FTMS", "IT/ion trap"], # "IT-FT/ion trap with FTMS", "IT/ion trap", "QqQ", "QqQ/triple quadrupole"
             "precursor_mode": ["[M+H]+", "[M-H]-"]
         }
+        if sets_overwrite:
+            for new_set, new_categories in sets_overwrite.items():
+                self.categorical_sets[new_set] = new_categories
         
         self.continuous_set = {
             "collision_energy",
