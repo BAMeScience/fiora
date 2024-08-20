@@ -5,6 +5,7 @@ def read(source, sep: str=" ", as_df=False):
 
     data = []
     data_piece = {}
+    precursor = ""
     mz, intensity, annotation = [], [], []
 
     for line in file:
@@ -16,11 +17,15 @@ def read(source, sep: str=" ", as_df=False):
                 continue
             else:
                 continue
-        if line.startswith("#In-silico") or line.startswith("#PREDICTED"): continue
+        if line.startswith("#PREDICTED"): continue
+        if line.startswith("#In-silico"):
+            precursor = line.split("ESI-MS/MS ")[1].split(" Spectra")[0]
+            continue
         if line.strip().startswith("#ID="):
             energy2 = False
             data.append(data_piece)
             data_piece, mz, intensity, annotation = {}, [], [], []
+            data_piece["Precursor_type"] = precursor
         if '=' in line:
             key = line.split('=')[0]
             value = "=".join(line.strip().split('=', 1)[1:])
