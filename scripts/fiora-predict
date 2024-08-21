@@ -15,7 +15,7 @@ from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
 from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog='fiora-predict',
                     description='Fiora is an in silico fragmentation framework, which predicts peaks and simulates tandem mass spectra including features such as retention time and collision cross sections. Use this script for spectrum predictions with a (pre-)trained model.',
                     epilog='Disclaimer:\nNo prediction software is perfect. This is an early prototype. Use with caution.')
@@ -33,7 +33,16 @@ def parse_args():
 
     return args
 
-
+def update_args_with_model_params(args: argparse.Namespace, model_params: dict) -> argparse.Namespace:
+    
+    if "rt_supported" in model_params.keys():
+        if not model_params["rt_supported"] and args.rt:
+            print("Warning: RT prediction is not support by the model. Overwriting user argument to --no-rt.\n")
+    if "ccs_supported" in model_params.keys():
+        if not model_params["ccs_supported"] and args.ccs:
+            print("Warning: CCS prediction is not support by the model. Overwriting user argument to --no-ccs.\n")
+    
+    return args
 
 
 metadata_key_map = {
@@ -94,6 +103,8 @@ def main():
             print(f"Error: Failed loading from state dict. Caused by: {e}.")
             exit(1)
         
+    args = update_args_with_model_params(args, model.model_params)
+    
     model.eval()
     model = model.to(args.dev)
 
@@ -111,7 +122,8 @@ def main():
     df["peaks"] = df["sim_peaks"]
     df["RETENTIONTIME"] = df["RT_pred"] 
     df["CCS"] = df["CCS_pred"] 
-    df["COMMENT"] = "\"In silico generated spectrum by Fiora (pre-release version v0.0.0)\""
+    version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
+    df["COMMENT"] = f"\"In silico generated spectrum by Fiora {version}\""
     
     # Write output file
     if args.output.endswith(".msp"):
