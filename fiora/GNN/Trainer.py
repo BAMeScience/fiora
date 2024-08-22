@@ -190,7 +190,7 @@ class Trainer:
                     val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.", rt_metric=rt_metric)
                 else:
                     val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
-                if val_stats["mse"] < checkpoint_stats["val_loss"]:
+                if val_stats["mse"].tolist() < checkpoint_stats["val_loss"]:
                     checkpoint_stats["epoch"] = e+1
                     checkpoint_stats["val_loss"] = val_stats["mse"].tolist()
                     model.save(checkpoint_stats["file"])
