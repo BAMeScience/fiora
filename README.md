@@ -29,11 +29,11 @@ Clone the project folder
     conda create -n fiora python=3.10.8
     conda activate fiora
 
-Change into the project directory (*cd fiora*). Then, install the package by using the setup.py via
+Change into the project directory (`cd fiora`). Then, install the package by using the setup.py via
 
     pip install .
 
-(Optional: You may want to test that the package works as intended. This can be done by running the sripts in the *tests* directory or with pytest (requires: *pip install pytest*))
+(Optional: You may want to test that the package works as intended. This can be done by running the sripts in the *tests* directory or with pytest (requires: `pip install pytest`))
 
     pytest -v tests
 
@@ -45,7 +45,7 @@ Use spectral prediction function as follows:
 
     fiora-predict [-h] -i INPUT -o OUTPUT [--model MODEL] [--rt | --no-rt] [--ccs | --no-ccs] [--annotation | --no-annotation]
 
-An input csv file must be provided and an output file specified (mgf or msp format).
+An input csv file must be provided and an output file specified (`mgf` or `msp` format).
 
 #### Input format
 
@@ -62,4 +62,4 @@ Run the fiora-predict from within this directory
 
     fiora-predict -i examples/example_input.csv  -o examples/example_spec.mgf
 
-By default, an open-source model is selected automatically, and predictions typically complete within a few seconds. For faster performance, specify a GPU device using the `--dev` option (e.g., `--dev cuda:0`). The outpu, i.e., *examples/example_spec.mgf*, can be compared to the [expected output](examples/expected_output.mgf) to verify the model works as intended. This is automatically done by running *pytest* (see above).
+By default, an open-source model is selected automatically, and predictions typically complete within a few seconds. For faster performance, specify a GPU device using the `--dev` option (e.g., `--dev cuda:0`). The output file (e.g., examples/example_spec.mgf) can be compared with the [expected results](examples/expected_output.mgf) to verify model accuracy. This verification is automatically performed by running pytest (as described above).
