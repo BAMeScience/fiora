@@ -46,7 +46,7 @@ Use spectral prediction function as follows:
 
 An input csv file must be provided and an output file specified (`mgf` or `msp` format).
 
-## Input format
+### Input format
 
 Input files are expected to be in csv format. With a header defining the columns: "Name", "SMILES", "Precursor_type", "CE", "Instrument_type" and rows listing individual queries.
 See example [input file](examples/example_input.csv).
