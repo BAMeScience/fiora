@@ -48,9 +48,9 @@ def update_args_with_model_params(args: argparse.Namespace, model_params: dict) 
 
 def print_model_messages(model_params: dict) -> None:
     if "version" in model_params.keys():
-        print(f"----Model----")
+        print(f"-----Model-----")
         print(model_params["version"])
-        print(f"-------------")
+        print(f"---------------")
     if "disclaimer" in model_params.keys():
         dis_msg = model_params["disclaimer"]
         print(f"\nDisclaimer: {dis_msg}")

@@ -5,12 +5,11 @@
 Performance is not guaranteed, functionality may be incomplete, and usability was not a central concern during this phase of development. 
 Users should exercise caution.
 
-**F<span style="font-variant:small-caps;">iora</span>** is an *in silico* fragmentation algorithm for small compounds and produces simulated tandem mass spectra (MS/MS). The framework uses a graph neural network as the core module and edge prediction to identify likely bond cleavages and fragment ion intensities. Additionally, **F<span style="font-variant:small-caps;">iora</span>** predicts retention time (RT) and collision cross section (CCS) of the compounds.
+**F<span style="font-variant:small-caps;">iora</span>** is an *in silico* fragmentation algorithm for small compounds that produces simulated tandem mass spectra (MS/MS). The framework employs a graph neural network to predict bond cleavages and fragment ion intensities via edge prediction. Additionally, **F<span style="font-variant:small-caps;">iora</span>** can estimate retention times (RT) and collision cross sections (CCS) of the compounds.
 
 ## Requirements
 
 Developed and tested with the following systems and versions:
-
 * Debian GNU/Linux 11 (bullseye)
 * Python 3.10.8
 * GCC 11.2.0
@@ -18,13 +17,13 @@ Developed and tested with the following systems and versions:
 
 ## Installation
 
-Installation guide of the Fiora python package (under 10 minutes):
+Installation guide for the Fiora Python package (under 10 minutes):
 
 Clone the project folder 
 
     git clone https://github.com/BAMeScience/fiora.git
 
-(Optional: Create a new conda environment)
+(Optional) Create a new conda environment
 
     conda create -n fiora python=3.10.8
     conda activate fiora
@@ -33,7 +32,7 @@ Change into the project directory (`cd fiora`). Then, install the package by usi
 
     pip install .
 
-(Optional: You may want to test that the package works as intended. This can be done by running the sripts in the *tests* directory or with pytest (requires: `pip install pytest`))
+(Optional) You may want to test that the package works as intended. This can be done by running the sripts in the *tests* directory or by using pytest (requires: `pip install pytest`)
 
     pytest -v tests
 
@@ -47,16 +46,16 @@ Use spectral prediction function as follows:
 
 An input csv file must be provided and an output file specified (`mgf` or `msp` format).
 
-#### Input format
+## Input format
 
 Input files are expected to be in csv format. With a header defining the columns: "Name", "SMILES", "Precursor_type", "CE", "Instrument_type" and rows listing individual queries.
 See example [input file](examples/example_input.csv).
 
-#### Output format
+### Output format
 
-Predicted spectra are provided in standard *msp* and *mgf* formats.
+Predicted spectra are provided in standard `msp` and `mgf` format.
 
-#### Example usage
+### Example usage
 
 Run the fiora-predict from within this directory
 
