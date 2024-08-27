@@ -38,10 +38,11 @@ def update_args_with_model_params(args: argparse.Namespace, model_params: dict) 
     if "rt_supported" in model_params.keys():
         if not model_params["rt_supported"] and args.rt:
             print("Warning: RT prediction is not support by the model. Overwriting user argument to --no-rt.\n")
+            args.rt = False
     if "ccs_supported" in model_params.keys():
         if not model_params["ccs_supported"] and args.ccs:
             print("Warning: CCS prediction is not support by the model. Overwriting user argument to --no-ccs.\n")
-
+            args.ccs = False
     return args
 
 def print_model_messages(model_params: dict) -> None:
@@ -137,7 +138,7 @@ def main():
     df["RETENTIONTIME"] = df["RT_pred"] 
     df["CCS"] = df["CCS_pred"] 
     version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
-    df["COMMENT"] = f"\"In silico generated spectrum by Fiora {version}\""
+    df["COMMENT"] = f"\"In silico generated spectrum by {version}\""
     
     # Write output file
     if args.output.endswith(".msp"):
