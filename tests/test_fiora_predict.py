@@ -1,10 +1,15 @@
 import io
 import os
 import sys
+import numpy as np
 
 import unittest
 from unittest.mock import patch
 import contextlib
+
+## Fiora imports
+import fiora.IO.mgfReader as mgfReader
+from fiora.MS.spectral_scores import spectral_cosine
 
 ## Importing fiora predict (from executable)
 from importlib.util import spec_from_loader, module_from_spec
@@ -16,6 +21,15 @@ sys.modules['fiora_predict'] = fiora_predict
 
 
 class TestFioraPredict(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp_path = "temp_spec.mgf"
+    
+    @classmethod
+    def tearDownClass(cls):
+        if os.path.exists(cls.temp_path):
+            os.remove(cls.temp_path)
 
     def test_missing_args(self):
         f = io.StringIO()
@@ -40,10 +54,39 @@ class TestFioraPredict(unittest.TestCase):
     def test_dummy(self):
         self.assertEqual('fiora'.upper(), 'FIORA')
 
-    def test_example_prediction_not_yet_implemented(self):
-        self.assertTrue(1 == int("1"))
-        self.assertFalse(2 == 1)
+    def test_model_cpu(self):
+        f = io.StringIO()
+        with patch("sys.argv", ["main", "-i", "examples/example_input.csv", "-o", self.temp_path]):
+            with contextlib.redirect_stdout(f):
+                fiora_predict.main()
+            self.assertIn("Finished prediction.", f.getvalue())   
+            self.assertTrue(os.path.exists(self.temp_path))
 
+    def test_model_output_integrity(self):
+        expected_output = "examples/expected_output.mgf"
+
+        df_expected = mgfReader.read(expected_output, as_df=True)
+        df_new = mgfReader.read(self.temp_path, as_df=True)
+        
+        columns = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
+        self.assertDictEqual(df_expected[columns].to_dict(), df_new[columns].to_dict())
+        for i, data in df_expected.iterrows():
+            peaks_expected = data["peaks"]
+            peaks_new = df_new.at[i, "peaks"]
+            cosine = spectral_cosine(peaks_expected, peaks_new, transform=np.sqrt)
+            self.assertGreater(cosine, 0.999)
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    suite = unittest.TestSuite()
+    
+    suite.addTests([
+        TestFioraPredict('test_dummy'),
+        TestFioraPredict('test_help'),
+        TestFioraPredict('test_missing_args'),
+        TestFioraPredict('test_model_cpu'),
+        TestFioraPredict('test_model_output_integrity'),
+    ])
+    
+    runner = unittest.TextTestRunner()
+    runner.run(suite)

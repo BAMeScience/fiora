@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import pandas as pd
+import os
 from rdkit import RDLogger
 RDLogger.DisableLog("rdApp.*")
 
@@ -99,11 +100,10 @@ def build_metabolites(df: pd.DataFrame, model_params: dict):
 def main():
     args = parse_args()
     print(f'Running fiora prediction with the following parameters: {args}\n')
-    
 
     # Load model
     if args.model == "default": 
-        args.model = "models/fiora_OS_v0.1.0.pt"
+        args.model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/fiora_OS_v0.1.0.pt")
     
     try: 
         model = GNNCompiler.load(args.model)
