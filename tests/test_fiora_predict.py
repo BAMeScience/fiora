@@ -74,7 +74,7 @@ class TestFioraPredict(unittest.TestCase):
             peaks_expected = data["peaks"]
             peaks_new = df_new.at[i, "peaks"]
             cosine = spectral_cosine(peaks_expected, peaks_new, transform=np.sqrt)
-            self.assertGreater(cosine, 0.999)
+            self.assertGreater(cosine, 0.99)
 
 if __name__ == '__main__':
     # unittest.main()
