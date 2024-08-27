@@ -172,6 +172,7 @@ class Trainer:
     def train(self, model, optimizer, loss_fn, scheduler=None, batch_size=1, epochs=2, val_every_n_epochs=1, masked_validation=False, with_RT=True, with_CCS=True, rt_metric=False, mask_name="validation_mask", tag=""):
         
         checkpoint_stats = {"epoch": -1, "val_loss": 100000.0, "file": f"../../checkpoint_{tag}.best.pt"}
+        model.model_params["training_label"] = self.y_tag
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         if not self.only_training:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
@@ -189,8 +190,9 @@ class Trainer:
                     val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"],  with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, mask_name=mask_name, title="Masked Val.", rt_metric=rt_metric)
                 else:
                     val_stats = self.validation_loop(model, validation_loader, loss_fn, self.metrics["val"], with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
-                if val_stats["mse"] < checkpoint_stats["val_loss"]:
+                if val_stats["mse"].tolist() < checkpoint_stats["val_loss"]:
                     checkpoint_stats["epoch"] = e+1
+                    print(f"\t >> Set new checkpoint to epoch {e+1}")
                     checkpoint_stats["val_loss"] = val_stats["mse"].tolist()
                     model.save(checkpoint_stats["file"])
             if scheduler:

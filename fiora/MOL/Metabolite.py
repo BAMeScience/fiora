@@ -36,6 +36,7 @@ class Metabolite:
         self.Formula = rdMolDescriptors.CalcMolFormula(self.MOL)
         self.morganFinger = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 2, nBits=2048) #1024
         self.morganFinger3 = AllChem.GetMorganFingerprintAsBitVect(self.MOL, 3, nBits=2048) #1024
+        self.morganFingerCountOnes = self.morganFinger.GetNumOnBits()
         self.id = id
         self.loss_weight = 1.0
 
@@ -47,6 +48,9 @@ class Metabolite:
 
     def __eq__(self, __o: object) -> bool:
         if self.ExactMolWeight != __o.ExactMolWeight:
+            return False
+        # Compare the number of bits=1 to prefilter mismatching Metabolites, since it is a much faster comparison
+        if self.morganFingerCountOnes != __o.morganFingerCountOnes: 
             return False
         return self.get_morganFinger() == __o.get_morganFinger()
 
@@ -118,8 +122,8 @@ class Metabolite:
         self.is_edge_aromatic = torch.tensor([[self.Graph[u][v]['bond_type'].name == "AROMATIC" for u,v in self.edges_as_tuples]], dtype=torch.float32).t()
         self.is_edge_in_ring = torch.tensor([[self.Graph[u][v]['bond'].IsInRing() for u,v in self.edges_as_tuples]], dtype=torch.float32).t()
         self.is_edge_not_in_ring = torch.tensor([[not self.Graph[u][v]['bond'].IsInRing() for u,v in self.edges_as_tuples]], dtype=torch.float32).t()
-        self.edge_forward_direction = torch.tensor([[u < v for u,v in self.edges_as_tuples]], dtype=torch.bool).t()
-        self.edge_backward_direction = torch.tensor([[u > v for u,v in self.edges_as_tuples]], dtype=torch.bool).t()
+        self.edge_forward_direction = torch.tensor([[bool(u < v) for u,v in self.edges_as_tuples]], dtype=torch.bool).t()
+        self.edge_backward_direction = torch.tensor([[bool(u > v) for u,v in self.edges_as_tuples]], dtype=torch.bool).t()
         
         # Lists
         self.atoms_in_order = [self.Graph.nodes[atom]['atom'] for atom in self.Graph.nodes()]
@@ -269,9 +273,24 @@ class Metabolite:
         self.compiled_probs6 = 2 * self.compiled_counts6 / torch.sum(self.compiled_counts6)
 
         # select all columns
+        # COMPILED VECTORS COUNTS & PROBABILITIES FOR END-TO-END PREDICTION! Default is compiled_probsALL
         self.compiled_countsALL = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
         self.compiled_probsALL = 2 * self.compiled_countsALL / torch.sum(self.compiled_countsALL)
         
+        # SQRT transformation
+        self.compiled_countsSQRT = torch.sqrt(self.compiled_countsALL)
+        self.compiled_probsSQRT = 2 * self.compiled_countsSQRT / torch.sum(self.compiled_countsSQRT)
+        
+        # Deemphasized precursor (DEPRE)
+        self.compiled_countsDEPRE = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1) / 2.0, self.precursor_count.unsqueeze(dim=-1) / 2.0])
+        self.compiled_probsDEPRE = 2 * self.compiled_countsDEPRE / torch.sum(self.compiled_countsDEPRE)
+        
+        # Precursor removal
+        self.compiled_counts_wo_prec = torch.cat([self.edge_count_matrix.flatten(), torch.zeros(1), torch.zeros(1)])
+        self.compiled_probs_wo_prec = 2 * self.compiled_counts_wo_prec / torch.sum(self.compiled_counts_wo_prec)
+        
+        
+        # MASKS
         self.compiled_validation_mask = torch.cat([self.is_edge_not_in_ring.bool().squeeze(), torch.tensor([True, True], dtype=bool)], dim=-1)
         self.compiled_validation_mask2 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 2), torch.tensor([True, True], dtype=bool)], dim=-1)
         self.compiled_validation_mask6 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 6), torch.tensor([True, True], dtype=bool)], dim=-1)
@@ -318,6 +337,9 @@ class Metabolite:
                 compiled_probs2=self.compiled_probs2,
                 compiled_probs6=self.compiled_probs6,
                 compiled_probsALL=self.compiled_probsALL,
+                compiled_probsSQRT=self.compiled_probsSQRT,
+                compiled_probsDEPRE=self.compiled_probsDEPRE,
+                compiled_probs_wo_prec=self.compiled_probs_wo_prec,
                 compiled_counts=self.compiled_counts,
                 edge_break_count=self.edge_break_count,
                 #edge_break_prob=self.edge_break_prob,

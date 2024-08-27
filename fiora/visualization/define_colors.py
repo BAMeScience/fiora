@@ -80,6 +80,8 @@ bluepink_grad = sns.diverging_palette(17.7, 245.8, s=75, l=50, sep=1, n=6, cente
 bluepink_grad8 = sns.diverging_palette(17.7, 245.8, s=75, l=50, sep=1, n=8, center='light', as_cmap=False)
 
 tri_palette=["gray", bluepink[0], bluepink[1]]
+def magma(steps):
+    return sns.color_palette("magma_r", steps)
 
 
 #

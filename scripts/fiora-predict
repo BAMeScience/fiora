@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import pandas as pd
+import os
 from rdkit import RDLogger
 RDLogger.DisableLog("rdApp.*")
 
@@ -15,7 +16,7 @@ from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
 from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog='fiora-predict',
                     description='Fiora is an in silico fragmentation framework, which predicts peaks and simulates tandem mass spectra including features such as retention time and collision cross sections. Use this script for spectrum predictions with a (pre-)trained model.',
                     epilog='Disclaimer:\nNo prediction software is perfect. This is an early prototype. Use with caution.')
@@ -33,8 +34,26 @@ def parse_args():
 
     return args
 
+def update_args_with_model_params(args: argparse.Namespace, model_params: dict) -> argparse.Namespace:
+    
+    if "rt_supported" in model_params.keys():
+        if not model_params["rt_supported"] and args.rt:
+            print("Warning: RT prediction is not support by the model. Overwriting user argument to --no-rt.\n")
+            args.rt = False
+    if "ccs_supported" in model_params.keys():
+        if not model_params["ccs_supported"] and args.ccs:
+            print("Warning: CCS prediction is not support by the model. Overwriting user argument to --no-ccs.\n")
+            args.ccs = False
+    return args
 
-
+def print_model_messages(model_params: dict) -> None:
+    if "version" in model_params.keys():
+        print(f"-----Model-----")
+        print(model_params["version"])
+        print(f"---------------")
+    if "disclaimer" in model_params.keys():
+        dis_msg = model_params["disclaimer"]
+        print(f"\nDisclaimer: {dis_msg}")
 
 metadata_key_map = {
                 "name": "Name",
@@ -44,17 +63,20 @@ metadata_key_map = {
                 }
 
 
-def build_metabolites(df):
+def build_metabolites(df: pd.DataFrame, model_params: dict):
     
     # Set feature encoder up
-    # TODO soft-code
     CE_upper_limit = 100.0
     weight_upper_limit = 1000.0
 
+    model_setup_feature_sets = None
+    if "setup_features_categorical_set" in model_params.keys():
+        model_setup_feature_sets = model_params["setup_features_categorical_set"]
+
     node_encoder = AtomFeatureEncoder(feature_list=["symbol", "num_hydrogen", "ring_type"])
     bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
-    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"])
-    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"])
+    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
+    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
 
     setup_encoder.normalize_features["collision_energy"]["max"] = CE_upper_limit 
     setup_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit 
@@ -78,10 +100,10 @@ def build_metabolites(df):
 def main():
     args = parse_args()
     print(f'Running fiora prediction with the following parameters: {args}\n')
-    
 
-    # Load backend model
-    if args.model == "default": raise NotImplementedError("Default model is not yet implemented. Specify a model to load.")
+    # Load model
+    if args.model == "default": 
+        args.model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/fiora_OS_v0.1.0.pt")
     
     try: 
         model = GNNCompiler.load(args.model)
@@ -94,6 +116,10 @@ def main():
             print(f"Error: Failed loading from state dict. Caused by: {e}.")
             exit(1)
         
+    print_model_messages(model.model_params)
+    args = update_args_with_model_params(args, model.model_params)
+
+    
     model.eval()
     model = model.to(args.dev)
 
@@ -104,14 +130,15 @@ def main():
     df = pd.read_csv(args.input)
     
     # Construct molecular structure graphs and fragmentation trees
-    df = build_metabolites(df)
+    df = build_metabolites(df, model.model_params)
     
     # Simulate compound fragmentation
     df = fiora.simulate_all(df, model, groundtruth=False)
     df["peaks"] = df["sim_peaks"]
     df["RETENTIONTIME"] = df["RT_pred"] 
     df["CCS"] = df["CCS_pred"] 
-    df["COMMENT"] = "\"In silico generated spectrum by Fiora (pre-release version v0.0.0)\""
+    version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
+    df["COMMENT"] = f"\"In silico generated spectrum by {version}\""
     
     # Write output file
     if args.output.endswith(".msp"):
