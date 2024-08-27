@@ -62,4 +62,4 @@ Run the fiora-predict from within this directory
 
     fiora-predict -i examples/example_input.csv  -o examples/example_spec.mgf
 
-Note that a default model is currently not implemented. We will provide default open-source model weights in the near future. The predictions should only take a few seconds. Specify a GPU device by using the *--dev* option (e.g., *--dev cuda:0*) for significant speed up.  
+By default, an open-source model is selected automatically, and predictions typically complete within a few seconds. For faster performance, specify a GPU device using the `--dev` option (e.g., `--dev cuda:0`). The outpu, i.e., *examples/example_spec.mgf*, can be compared to the [expected output](examples/expected_output.mgf) to verify the model works as intended. This is automatically done by running *pytest* (see above).
