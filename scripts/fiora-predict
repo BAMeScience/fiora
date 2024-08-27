@@ -41,9 +41,17 @@ def update_args_with_model_params(args: argparse.Namespace, model_params: dict) 
     if "ccs_supported" in model_params.keys():
         if not model_params["ccs_supported"] and args.ccs:
             print("Warning: CCS prediction is not support by the model. Overwriting user argument to --no-ccs.\n")
-    
+
     return args
 
+def print_model_messages(model_params: dict) -> None:
+    if "version" in model_params.keys():
+        print(f"----Model----")
+        print(model_params["version"])
+        print(f"-------------")
+    if "disclaimer" in model_params.keys():
+        dis_msg = model_params["disclaimer"]
+        print(f"\nDisclaimer: {dis_msg}")
 
 metadata_key_map = {
                 "name": "Name",
@@ -53,17 +61,20 @@ metadata_key_map = {
                 }
 
 
-def build_metabolites(df):
+def build_metabolites(df: pd.DataFrame, model_params: dict):
     
     # Set feature encoder up
-    # TODO soft-code
     CE_upper_limit = 100.0
     weight_upper_limit = 1000.0
 
+    model_setup_feature_sets = None
+    if "setup_features_categorical_set" in model_params.keys():
+        model_setup_feature_sets = model_params["setup_features_categorical_set"]
+
     node_encoder = AtomFeatureEncoder(feature_list=["symbol", "num_hydrogen", "ring_type"])
     bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
-    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"])
-    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"])
+    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
+    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
 
     setup_encoder.normalize_features["collision_energy"]["max"] = CE_upper_limit 
     setup_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit 
@@ -89,8 +100,9 @@ def main():
     print(f'Running fiora prediction with the following parameters: {args}\n')
     
 
-    # Load backend model
-    if args.model == "default": raise NotImplementedError("Default model is not yet implemented. Specify a model to load.")
+    # Load model
+    if args.model == "default": 
+        args.model = "models/fiora_OS_v0.1.0.pt"
     
     try: 
         model = GNNCompiler.load(args.model)
@@ -103,7 +115,9 @@ def main():
             print(f"Error: Failed loading from state dict. Caused by: {e}.")
             exit(1)
         
+    print_model_messages(model.model_params)
     args = update_args_with_model_params(args, model.model_params)
+
     
     model.eval()
     model = model.to(args.dev)
@@ -115,7 +129,7 @@ def main():
     df = pd.read_csv(args.input)
     
     # Construct molecular structure graphs and fragmentation trees
-    df = build_metabolites(df)
+    df = build_metabolites(df, model.model_params)
     
     # Simulate compound fragmentation
     df = fiora.simulate_all(df, model, groundtruth=False)
