@@ -265,7 +265,7 @@ class GNNCompiler(torch.nn.Module):
         with open(PARAMS_PATH, 'r') as fp:
             params = json.load(fp)
         model = GNNCompiler(params)
-        model.load_state_dict(torch.load(STATE_PATH))
+        model.load_state_dict(torch.load(STATE_PATH, weights_only=True))
 
         if not isinstance(model, cls):
             raise ValueError(f'file {PATH} contains incorrect model class {type(model)}')

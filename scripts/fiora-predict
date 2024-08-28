@@ -105,16 +105,12 @@ def main():
     if args.model == "default": 
         args.model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/fiora_OS_v0.1.0.pt")
     
-    try: 
-        model = GNNCompiler.load(args.model)
-    except:
-        try:
-            print(f"Warning: Failed loading the model {args.model}. Fallback: Loading the model from state dictionary.")
-            model = GNNCompiler.load_from_state_dict(args.model)
-            print("Model loaded from state dict without further errors.")
-        except Exception as e:
-            print(f"Error: Failed loading from state dict. Caused by: {e}.")
-            exit(1)
+
+    try:
+        model = GNNCompiler.load_from_state_dict(args.model)
+    except Exception as e:
+        print(f"Error: Failed loading from model from state dict. Caused by: {e}.")
+        exit(1)
         
     print_model_messages(model.model_params)
     args = update_args_with_model_params(args, model.model_params)
