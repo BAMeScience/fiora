@@ -107,9 +107,7 @@ def main():
     if args.model == "default":
         with importlib.resources.path('models', 'fiora_OS_v0.1.0.pt') as model_path:
             args.model = str(model_path)
-        #os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/fiora_OS_v0.1.0.pt")
     
-    print(args.model)
     try:
         model = GNNCompiler.load_from_state_dict(args.model)
     except Exception as e:
