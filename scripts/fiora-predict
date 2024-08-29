@@ -1,8 +1,10 @@
 #! /usr/bin/env python
 import pandas as pd
 import os
+import warnings
 from rdkit import RDLogger
 RDLogger.DisableLog("rdApp.*")
+warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
 
 import argparse
 import importlib.resources
@@ -28,7 +30,7 @@ def parse_args() -> argparse.Namespace:
 
     
     parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="predict retention time", default=False)
-    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=True)
+    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=False)
     parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=False)
     args = parser.parse_args()
 
