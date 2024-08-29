@@ -265,7 +265,7 @@ class GNNCompiler(torch.nn.Module):
         with open(PARAMS_PATH, 'r') as fp:
             params = json.load(fp)
         model = GNNCompiler(params)
-        model.load_state_dict(torch.load(STATE_PATH))
+        model.load_state_dict(torch.load(STATE_PATH, map_location=torch.serialization.default_restore_location, weights_only=True))
 
         if not isinstance(model, cls):
             raise ValueError(f'file {PATH} contains incorrect model class {type(model)}')
@@ -291,3 +291,22 @@ class GNNCompiler(torch.nn.Module):
         
         #Reset to previous device
         self.to(prev_device)
+
+    # def save(self, PATH: str, dev: str="cpu") -> None:
+        
+    #     # Set device to cpu for saving
+    #     prev_device = next(self.parameters()).device
+    #     self.to(dev)
+    #     with open(PATH, 'wb') as f:
+    #         dill.dump(self.to(dev), f)
+
+    #     params_path = '.'.join(PATH.split('.')[:-1]) + '_params.json'
+    #     with open(params_path, 'w') as fp:
+    #         json.dump(self.model_params, fp)
+        
+    #     state_dict_path = params_path.replace("_params.json", "_state.pt")
+    #     self.to(dev)
+
+    #     torch.save(self.state_dict(), state_dict_path, _use_new_zipfile_serialization=False)
+        
+    #     self.to(prev_device)

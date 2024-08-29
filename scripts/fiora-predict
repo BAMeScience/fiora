@@ -1,10 +1,13 @@
 #! /usr/bin/env python
 import pandas as pd
 import os
+import warnings
 from rdkit import RDLogger
 RDLogger.DisableLog("rdApp.*")
+warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
 
 import argparse
+import importlib.resources
 import fiora.IO.mgfWriter as mgfWriter
 import fiora.IO.mspWriter as mspWriter
 
@@ -14,7 +17,6 @@ from fiora.MOL.Metabolite import Metabolite
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
 from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
 from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog='fiora-predict',
@@ -28,7 +30,7 @@ def parse_args() -> argparse.Namespace:
 
     
     parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="predict retention time", default=False)
-    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=True)
+    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=False)
     parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=False)
     args = parser.parse_args()
 
@@ -102,19 +104,17 @@ def main():
     print(f'Running fiora prediction with the following parameters: {args}\n')
 
     # Load model
-    if args.model == "default": 
-        args.model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/fiora_OS_v0.1.0.pt")
+    if args.model == "default":
+        with importlib.resources.path('models', 'fiora_OS_v0.1.0.pt') as model_path:
+            args.model = str(model_path)
+        #os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/fiora_OS_v0.1.0.pt")
     
-    try: 
-        model = GNNCompiler.load(args.model)
-    except:
-        try:
-            print(f"Warning: Failed loading the model {args.model}. Fallback: Loading the model from state dictionary.")
-            model = GNNCompiler.load_from_state_dict(args.model)
-            print("Model loaded from state dict without further errors.")
-        except Exception as e:
-            print(f"Error: Failed loading from state dict. Caused by: {e}.")
-            exit(1)
+    print(args.model)
+    try:
+        model = GNNCompiler.load_from_state_dict(args.model)
+    except Exception as e:
+        print(f"Error: Failed loading from model from state dict. Caused by: {e}.")
+        exit(1)
         
     print_model_messages(model.model_params)
     args = update_args_with_model_params(args, model.model_params)
