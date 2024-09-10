@@ -187,6 +187,19 @@ class GNNCompiler(torch.nn.Module):
         for param in module.parameters():
             param.requires_grad = True
     
+    def set_dropout_rate(self, input_dropout: float, latent_dropout: float) -> None:
+        
+        self.GNN_module.input_dropout.p = input_dropout
+        self.GNN_module.latent_dropout.p = latent_dropout
+        self.edge_module.input_dropout.p = input_dropout
+        self.edge_module.latent_dropout.p = latent_dropout
+        self.precursor_module.input_dropout.p = input_dropout
+        self.precursor_module.latent_dropout.p = latent_dropout
+        self.RT_module.input_dropout.p = input_dropout
+        self.RT_module.latent_dropout.p = latent_dropout
+        self.CCS_module.input_dropout.p = input_dropout
+        self.CCS_module.latent_dropout.p = latent_dropout
+    
     def set_transform(self, transformation: Literal["softmax", "double_softmax", "off"]):
         self.softmax = torch.nn.Softmax(dim=0)
         if transformation == "double_softmax":
