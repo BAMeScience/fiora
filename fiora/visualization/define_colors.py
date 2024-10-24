@@ -129,8 +129,8 @@ def set_plt_params_to_default():
     plt.rcParams.update(plt.rcParamsDefault)
 
 
-def adjust_box_widths(g, fac):
-    for ax in g.axes:
+def adjust_box_widths_for_all_axes(fig, fac):
+    for ax in fig.axes:
 
         for c in ax.get_children():
 
@@ -154,3 +154,39 @@ def adjust_box_widths(g, fac):
                 for l in ax.lines:
                     if np.all(l.get_xdata() == [xmin, xmax]):
                         l.set_xdata([xmin_new, xmax_new])
+                        
+def adjust_box_widths(ax, fac):
+        for c in ax.get_children():
+
+            if isinstance(c, PathPatch):
+                # getting current width of box:
+                p = c.get_path()
+                verts = p.vertices
+                verts_sub = verts[:-1]
+                xmin = np.min(verts_sub[:, 0])
+                xmax = np.max(verts_sub[:, 0])
+                xmid = 0.5*(xmin+xmax)
+                xhalf = 0.5*(xmax - xmin)
+
+                # setting new width of box
+                xmin_new = xmid-fac*xhalf
+                xmax_new = xmid+fac*xhalf
+                verts_sub[verts_sub[:, 0] == xmin, 0] = xmin_new
+                verts_sub[verts_sub[:, 0] == xmax, 0] = xmax_new
+
+                # setting new width of median line
+                for l in ax.lines:
+                    if np.all(l.get_xdata() == [xmin, xmax]):
+                        l.set_xdata([xmin_new, xmax_new])
+
+
+def adjust_bar_widths(ax, fac):
+    for bar in ax.patches:
+        # Getting current width of the bar
+        bar_width = bar.get_width()
+        bar_center = bar.get_x() + bar_width / 2
+
+        # Setting new width of the bar
+        new_width = fac * bar_width
+        bar.set_width(new_width)
+        bar.set_x(bar_center - new_width / 2)

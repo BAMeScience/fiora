@@ -300,6 +300,8 @@ class Metabolite:
         #self.compiled_validation_mask2 = 
     
         # Track additional statistics
+        max_intensity = max(int_list)
+        intensity_filter_threshold = 0.01
         self.match_stats = {
             'counts': self.compiled_counts.sum().tolist() / 2.0,
             'ms_all_counts': sum(int_list),
@@ -310,8 +312,9 @@ class Metabolite:
             'num_peaks': len(mz_fragments),
             'num_peak_matches': len(self.peak_matches),
             'percent_peak_matches': len(self.peak_matches) / len(mz_fragments),
-            'num_peak_matches_filtered': sum([match["relative_intensity"] > 0.001 for mz, match in self.peak_matches.items()]),
-            'percent_peak_matches_filtered': sum([match["relative_intensity"] > 0.001 for mz, match in self.peak_matches.items()]) / len(mz_fragments),
+            'num_peaks_filtered': sum([(i / max_intensity) > intensity_filter_threshold for i in int_list]),
+            'num_peak_matches_filtered': sum([match["relative_intensity"] > intensity_filter_threshold for mz, match in self.peak_matches.items()]),
+            'percent_peak_matches_filtered': sum([match["relative_intensity"] > intensity_filter_threshold for mz, match in self.peak_matches.items()]) / len(mz_fragments),
             'num_non_precursor_matches': sum([(None not in match["edges"]) for mz, match in self.peak_matches.items()]),
             'num_peak_match_conflicts': sum([len(match["edges"]) > 1 for mz, match in self.peak_matches.items()]),
             'num_fragment_conflicts': sum([len(match["fragments"]) > 1 for mz, match in self.peak_matches.items()]),
