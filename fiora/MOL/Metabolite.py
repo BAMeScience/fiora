@@ -14,7 +14,9 @@ from typing import Literal
 from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, ADDUCT_WEIGHTS
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
 from fiora.MOL.FragmentationTree import FragmentationTree 
-
+from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
+from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
+from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
 
 
 class Metabolite:
@@ -104,7 +106,7 @@ class Metabolite:
         self.Graph = mol_to_graph(self.MOL)
     
     
-    def compute_graph_attributes(self, node_encoder = None, bond_encoder = None):
+    def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None) -> None:
 
         # Adjacency
         self.A =  get_adjacency_matrix(self.Graph)
@@ -145,14 +147,19 @@ class Metabolite:
             
         self.mode_mapper = {mode: i for i, mode in enumerate(DEFAULT_MODES)} # Set a default mode mapper, might be overwritten later
 
-    def add_metadata(self, metadata, setup_encoder=None, rt_feature_encoder=None, max_RT=30.0):
+
+    def add_metadata(self, metadata, setup_encoder: SetupFeatureEncoder=None, rt_feature_encoder: SetupFeatureEncoder=None, max_RT=30.0):
         self.metadata = metadata
         mol_metadata = {"molecular_weight": self.ExactMolWeight}
         metadata.update(mol_metadata)
         if setup_encoder:
             self.setup_features = setup_encoder.encode(1, metadata)
             self.setup_features_per_edge = setup_encoder.encode(len(self.edges_as_tuples), metadata)
-            # self.additional_features = torch.cat([self.bond_features, self.setup_features], dim=1)
+            if "ce_steps" in metadata:
+                self.ce_steps = torch.tensor([setup_encoder.normalize_collision_steps(metadata["ce_steps"]) + [np.nan for _ in range(5 - len(metadata["ce_steps"]))]]) # nan padding
+            else:
+                self.ce_steps = torch.tensor([np.nan] * 5, dtype=torch.float).unsqueeze(0)
+            self.ce_idx = torch.tensor(setup_encoder.one_hot_mapper["collision_energy"], dtype=int).unsqueeze(dim=-1)
         else:
             self.setup_features = torch.zeros(1, 0, dtype=torch.float32)
             self.setup_features_per_edge = torch.zeros(len(self.edges_as_tuples), 0, dtype=torch.float32)
@@ -361,10 +368,15 @@ class Metabolite:
                 compiled_validation_mask6 = self.compiled_validation_mask6,
                 compiled_validation_maskALL = self.compiled_validation_maskALL,
                 
+                # group identity and loss weights
                 group_id=self.id,
-                #weight=self.loss_weight, 
                 weight = torch.tensor([self.loss_weight]).unsqueeze(dim=-1),
                 weight_tensor=torch.full(self.compiled_probsALL.shape, self.loss_weight),
+                
+                # Stepped collision energies
+                ce_steps = self.ce_steps,
+                ce_idx = self.ce_idx, # geom treats values with suffix _index differently -> avoid
+                
                 
                 # additional information
                 is_node_aromatic=self.is_node_aromatic,
