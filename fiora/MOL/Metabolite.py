@@ -156,9 +156,9 @@ class Metabolite:
             self.setup_features = setup_encoder.encode(1, metadata)
             self.setup_features_per_edge = setup_encoder.encode(len(self.edges_as_tuples), metadata)
             if "ce_steps" in metadata:
-                self.ce_steps = torch.tensor([setup_encoder.normalize_collision_steps(metadata["ce_steps"]) + [np.nan for _ in range(5 - len(metadata["ce_steps"]))]]) # nan padding
+                self.ce_steps = torch.tensor([setup_encoder.normalize_collision_steps(metadata["ce_steps"]) + [np.nan for _ in range(7 - len(metadata["ce_steps"]))]]) # nan padding
             else:
-                self.ce_steps = torch.tensor([np.nan] * 5, dtype=torch.float).unsqueeze(0)
+                self.ce_steps = torch.tensor([np.nan] * 7, dtype=torch.float).unsqueeze(0)
             self.ce_idx = torch.tensor(setup_encoder.one_hot_mapper["collision_energy"], dtype=int).unsqueeze(dim=-1)
         else:
             self.setup_features = torch.zeros(1, 0, dtype=torch.float32)
