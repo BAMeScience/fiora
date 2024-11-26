@@ -148,10 +148,13 @@ class Metabolite:
         self.mode_mapper = {mode: i for i, mode in enumerate(DEFAULT_MODES)} # Set a default mode mapper, might be overwritten later
 
 
-    def add_metadata(self, metadata, setup_encoder: SetupFeatureEncoder=None, rt_feature_encoder: SetupFeatureEncoder=None, max_RT=30.0):
+    def add_metadata(self, metadata, setup_encoder: SetupFeatureEncoder=None, rt_feature_encoder: SetupFeatureEncoder=None, process_metadata: bool = True, max_RT=30.0):
         self.metadata = metadata
         mol_metadata = {"molecular_weight": self.ExactMolWeight}
         metadata.update(mol_metadata)
+        if not process_metadata:
+            return
+        
         if setup_encoder:
             self.setup_features = setup_encoder.encode(1, metadata)
             self.setup_features_per_edge = setup_encoder.encode(len(self.edges_as_tuples), metadata)
