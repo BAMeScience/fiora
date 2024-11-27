@@ -155,6 +155,7 @@ class SimulationFramework:
             stats["spectral_cosine"], stats["spectral_bias"] = spectral_cosine(query_peaks, stats["sim_peaks"], with_bias=True)
             stats["spectral_sqrt_cosine"], stats["spectral_sqrt_bias"] = spectral_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True)
             stats["spectral_sqrt_cosine_wo_prec"], stats["spectral_sqrt_bias_wo_prec"] = spectral_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, remove_mz=metabolite.get_theoretical_precursor_mz(ion_type=metabolite.metadata["precursor_mode"]), with_bias=True)
+            stats["spectral_sqrt_cosine_avg"], stats["spectral_sqrt_bias_avg"] = (stats["spectral_sqrt_cosine"] + stats["spectral_sqrt_cosine_wo_prec"]) / 2.0, (stats["spectral_sqrt_bias"] + stats["spectral_sqrt_bias_wo_prec"]) / 2.0
             stats["spectral_refl_cosine"], stats["spectral_refl_bias"] = spectral_reflection_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True)
             stats["steins_cosine"], stats["steins_bias"] = reweighted_dot(query_peaks, stats["sim_peaks"], int_pow=0.5, mz_pow=0.5, with_bias=True)
         return stats
@@ -164,15 +165,10 @@ class SimulationFramework:
         with torch.no_grad():
             model.eval()
 
-            
-            # Add additional columns to dataframe (cause of errors when new data is added to stats)
-            if groundtruth:
-                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["cosine_similarity", "kl_div", "sim_peaks", "spectral_cosine", "spectral_sqrt_cosine", "spectral_sqrt_cosine_wo_prec", "spectral_refl_cosine", "spectral_bias", "spectral_sqrt_bias", "spectral_sqrt_bias_wo_prec", "spectral_refl_bias", "steins_cosine", "steins_bias", "RT_pred", "RT_dif", "CCS_pred"]])])
-            else:
-                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["sim_peaks", "RT_pred", "CCS_pred"]])])
             for i,data in df.iterrows():
                 metabolite = data["Metabolite"]
                 stats = self.simulate_and_score(metabolite, model, base_attr_name, query_peaks=data["peaks"] if groundtruth else None)
+                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in stats.keys()])]) # Add new empty columns for all statistics
                 
                 for key, value in stats.items():
                     if key + suffix in df.columns:
