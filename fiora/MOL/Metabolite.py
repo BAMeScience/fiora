@@ -24,11 +24,15 @@ class Metabolite:
         if SMILES:
             self.SMILES = SMILES
             self.MOL = Chem.MolFromSmiles(self.SMILES)
+            if not self.MOL:
+                raise AssertionError("Molecule invalid; could not be generated from SMILES") 
             self.InChI = Chem.MolToInchi(self.MOL)
             self.InChIKey = Chem.InchiToInchiKey(self.InChI)
         elif InChI:
             self.InChI = InChI
             self.MOL = Chem.MolFromInchi(self.InChI)
+            if not self.MOL:
+                raise AssertionError("Molecule invalid; could not be generated from InChI")
             self.InChIKey = Chem.InchiToInchiKey(self.InChI)
             self.SMILES = Chem.MolToSmiles(self.MOL) 
         else:
