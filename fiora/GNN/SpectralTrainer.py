@@ -4,8 +4,9 @@ from torch.utils.data import DataLoader, Dataset
 import torch_geometric.loader as geom_loader
 from torchmetrics import Accuracy, MetricTracker, MetricCollection, Precision, Recall, PrecisionRecallCurve, MeanSquaredError, MeanAbsoluteError, R2Score
 from sklearn.model_selection import train_test_split
-from typing import Literal
+from typing import Literal, List, Callable, Any
 
+from fiora.GNN.Trainer import Trainer
 from fiora.GNN.Datasets import collate_graph_batch, collate_graph_edge_batch
 from fiora.GNN.Losses import WeightedMSELoss, WeightedMAELoss
 
@@ -13,71 +14,30 @@ from fiora.GNN.Losses import WeightedMSELoss, WeightedMAELoss
 GNN Trainer
 '''
 
-class SpectralTrainer:
-    def __init__(self, data, train_val_split: float= 0.8, split_by_group: bool=False, only_training: bool=False, train_keys=None, val_keys=None, y_tag: str="y", metric_dict=None, problem_type: Literal["classification", "regression", "softmax_regression"]="classification", library: Literal["standard", "geometric"]="geometric", num_workers: int=0, seed: int=42, device: str="cpu"):
+class SpectralTrainer(Trainer):
+    def __init__(self, data: Dataset, train_val_split: float= 0.8, split_by_group: bool=False, only_training: bool=False, train_keys: List[int]=None, val_keys: List[int]=None, y_tag: str="y", metric_dict=None, problem_type: Literal["classification", "regression", "softmax_regression"]="classification", library: Literal["standard", "geometric"]="geometric", num_workers: int=0, seed: int=42, device: str="cpu"):
         
-        self.only_training = only_training
-        if only_training:
-            self.training_data, self.validation_data = data, Dataset()
-            group_ids = list((map(lambda x: getattr(x, "group_id"), data)))
-            self.train_keys = group_ids
-            self.val_keys = []
-        
-        if split_by_group:
-            # Perform train test split that groups data points with the same key together
-            group_ids = list((map(lambda x: getattr(x, "group_id"), data)))
-            keys = np.unique(group_ids)
-            if train_keys is not None and val_keys is not None:
-                print("Using pre-arranged train/validation set")
-                self.train_keys, self.val_keys = train_keys, val_keys
-            else:
-                self.train_keys, self.val_keys = train_test_split(keys, test_size=1 - train_val_split, random_state=seed)
-            train_ids = np.where(list(map(lambda x: x in self.train_keys, group_ids)))[0]
-            val_ids = np.where(list(map(lambda x: x in self.val_keys, group_ids)))[0]
-            self.training_data, self.validation_data = torch.utils.data.Subset(data, train_ids), torch.utils.data.Subset(data, val_ids)            
-        else:
-            train_size = int(len(data)*train_val_split)
-            self.training_data, self.validation_data = torch.utils.data.random_split(data, [train_size, len(data) - train_size], generator=torch.Generator().manual_seed(seed))
-        
+        super().__init__(data, train_val_split, only_training, split_by_group, train_keys, val_keys, seed, num_workers, device)
         self.y_tag = y_tag
         self.problem_type = problem_type
-        self.num_workers = num_workers
         
+        # Initialize torch metrics based on dictionary 
         if metric_dict:
             self.metrics = {
                 data_split: MetricTracker(MetricCollection({
                         t: M() for t,M in metric_dict.items()
-                    })).to(device) # TODO ??????
+                    })).to(device)
                 for data_split in ["train", "val", "masked_val", "test"]
             }
         else:
-            self.metrics = {
-                data_split: MetricTracker(MetricCollection({
-                        'acc': Accuracy("binary", num_classes=1), 
-                        'prec': Precision('binary', num_classes=1),
-                        'rec': Recall('binary', num_classes=1)
-                    }) if problem_type=="classification" else MetricCollection({
-                            'mse': MeanSquaredError(),
-                            'mae': MeanAbsoluteError()#,
-                            #"r2": R2Score()
-                        })
-                    ).to(device)
-                for data_split in ["train", "val", "masked_val", "test"]
-            }
-        self.loader_base = DataLoader
-        if library=="geometric":
-            self.loader_base = geom_loader.DataLoader
+            self.metrics = _get_default_metrics(problem_type)
+        self.loader_base = geom_loader.DataLoader if library == "geometric" else DataLoader
         
-        self.output_transform = lambda y, batch: y #torch.nn.Identity()
+        # Set output transform according to spectral output format
+        self.output_transform = lambda y, batch: y #equivalent to torch.nn.Identity()
         if problem_type == "softmax_regression":
             self.softmax = torch.nn.Softmax(dim=0)
             self.output_transform = self.graph_based_softmax_regression
-    
-    def is_group_in_training_set(self, group_id):
-        return (group_id in self.train_keys)
-    
-    def is_group_in_validation_set(self, group_id):
-        return (group_id in self.val_keys)
     
     def graph_based_softmax_regression(self, y, batch):      
         edge_graph_map = batch["batch"][batch["edge_index"][0,:]]
@@ -87,8 +47,7 @@ class SpectralTrainer:
     
     def training_loop(self, model, dataloader, optimizer, loss_fn, metrics, with_weights=False, with_RT=False, with_CCS=False, rt_metric=False, title=""):
         training_loss = 0
-        metrics.increment()
-                
+        metrics.increment()       
 
         for id, batch in enumerate(dataloader):
             
