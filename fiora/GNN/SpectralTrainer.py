@@ -15,9 +15,9 @@ GNN Trainer
 '''
 
 class SpectralTrainer(Trainer):
-    def __init__(self, data: Dataset, train_val_split: float= 0.8, split_by_group: bool=False, only_training: bool=False, train_keys: List[int]=None, val_keys: List[int]=None, y_tag: str="y", metric_dict=None, problem_type: Literal["classification", "regression", "softmax_regression"]="classification", library: Literal["standard", "geometric"]="geometric", num_workers: int=0, seed: int=42, device: str="cpu"):
+    def __init__(self, data, train_val_split: float= 0.8, split_by_group: bool=False, only_training: bool=False, train_keys: List[int]=[], val_keys: List[int]=[], y_tag: str="y", metric_dict=None, problem_type: Literal["classification", "regression", "softmax_regression"]="classification", library: Literal["standard", "geometric"]="geometric", num_workers: int=0, seed: int=42, device: str="cpu"):
         
-        super().__init__(data, train_val_split, only_training, split_by_group, train_keys, val_keys, seed, num_workers, device)
+        super().__init__(data, train_val_split, split_by_group, only_training, train_keys, val_keys, seed, num_workers, device)
         self.y_tag = y_tag
         self.problem_type = problem_type
         
@@ -135,9 +135,6 @@ class SpectralTrainer(Trainer):
         training_loader = self.loader_base(self.training_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
         if not self.only_training:
             validation_loader = self.loader_base(self.validation_data, batch_size=batch_size, num_workers=self.num_workers, shuffle=True)
-        # if isinstance(loss_fn, WeightedMSE):
-        #     for data_split in ["train", "val", "masked_val", "test"]:
-        #         self.metrics[data_split]["mse"] = WeightedMSE() 
         using_weighted_loss_func = isinstance(loss_fn, WeightedMSELoss) | isinstance(loss_fn, WeightedMAELoss)
         
         # Main loop
