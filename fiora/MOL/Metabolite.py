@@ -15,8 +15,6 @@ from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, ADDUCT_WEIGHTS
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
 from fiora.MOL.FragmentationTree import FragmentationTree 
 
-
-
 class Metabolite:
     def __init__(self, SMILES: str|None, InChI: str|None=None, id: int|None=None) -> None:
         if SMILES:
@@ -102,7 +100,17 @@ class Metabolite:
     # class-specific functions
     def create_molecular_structure_graph(self):
         self.Graph = mol_to_graph(self.MOL)
-    
+
+    def calc_element_distribution(self):
+        element_distribution = {}
+
+        for elem in self.node_elements:
+            if elem in element_distribution:
+                element_distribution[elem] += 1
+            else:
+                element_distribution[elem] = 1
+
+        return element_distribution
     
     def compute_graph_attributes(self, node_encoder = None, bond_encoder = None):
 
@@ -128,6 +136,7 @@ class Metabolite:
         # Lists
         self.atoms_in_order = [self.Graph.nodes[atom]['atom'] for atom in self.Graph.nodes()]
         self.node_elements = [self.Graph.nodes[atom]['atom'].GetSymbol() for atom in self.Graph.nodes()]
+        self.element_distribution = self.calc_element_distribution()
         self.edge_bond_names = [self.Graph[u][v]['bond_type'].name for u,v in self.edges_as_tuples]
         if bond_encoder:
             self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in self.edge_bond_names], dtype=torch.long)

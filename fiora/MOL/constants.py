@@ -61,7 +61,7 @@ ADDUCT_WEIGHTS = {
     "[M-3H]-": -1 * Descriptors.ExactMolWt(h_2) - 1 * Chem.Descriptors.ExactMolWt(h_plus),    
     }
 
-
+RARE_ELEMENTS = ['Br', 'Cl', 'F', 'I']
 
 PPM = 1/1000000
 DEFAULT_PPM = 100 * PPM
