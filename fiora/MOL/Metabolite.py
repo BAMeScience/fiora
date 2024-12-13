@@ -103,7 +103,6 @@ class Metabolite:
 
     def calc_element_distribution(self):
         element_distribution = {}
-
         for elem in self.node_elements:
             if elem in element_distribution:
                 element_distribution[elem] += 1
