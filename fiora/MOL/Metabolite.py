@@ -330,7 +330,28 @@ class Metabolite:
             'ms_num_all_peaks': len(mz_fragments)  
         }
             
-    def as_geometric_data(self, with_labels=True):
+    def as_geometric_data(self, with_labels=True, ccs_only=False):
+        if ccs_only:
+            return Data(
+                x=self.node_features,
+                edge_index=self.edges.t().contiguous(),
+                edge_type=self.edge_bond_types,
+                edge_attr=self.bond_features,
+                static_graph_features=self.setup_features,
+                static_edge_features=self.setup_features_per_edge,
+                static_rt_features = self.rt_setup_features,
+                
+                # masks and groups
+                validation_mask=self.is_edge_not_in_ring.bool(),
+                group_id=self.id,
+                
+                # additional information
+                is_node_aromatic=self.is_node_aromatic,
+                is_edge_aromatic=self.is_edge_aromatic,
+
+                ccs = self.ccs,
+                ccs_mask = self.ccs_mask,
+                )
         if with_labels:
             return Data(
                 x=self.node_features,
