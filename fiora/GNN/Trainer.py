@@ -9,7 +9,7 @@ from typing import Literal, List, Dict, Any
 
 class Trainer(ABC):
     def __init__(self, data: Any, train_val_split: float=0.8, split_by_group: bool=False, only_training: bool=False,
-                 train_keys: List[int]=[], val_keys: List[int]=[], seed: int=42, num_workers: int=0, device: str="cpu") -> None:
+                 train_keys: List[int]=[], val_keys: List[int]=[], test_keys: List[int]=[], seed: int=42, num_workers: int=0, device: str="cpu") -> None:
         
         self.only_training = only_training
         self.num_workers = num_workers
@@ -19,7 +19,7 @@ class Trainer(ABC):
             self.training_data = data
             self.validation_data = Dataset()
         elif split_by_group:
-            self._split_by_group(data, train_val_split, train_keys, val_keys, seed)
+            self._split_by_group(data, train_val_split, train_keys, val_keys, test_keys, seed)
         else:
             train_size = int(len(data) * train_val_split)
             self.training_data, self.validation_data = torch.utils.data.random_split(
@@ -28,20 +28,22 @@ class Trainer(ABC):
                 )
 
     
-    def _split_by_group(self, data, train_val_split: float, train_keys: List[int], val_keys: List[int], seed: int):
+    def _split_by_group(self, data, train_val_split: float, train_keys: List[int], val_keys: List[int], test_keys: List[int], seed: int):
         group_ids = [getattr(x, "group_id") for x in data]
         keys = np.unique(group_ids)
-        if len(train_keys) > 0 and len(val_keys) > 0:
-            self.train_keys, self.val_keys = train_keys, val_keys
-            print("Using pre-set train/validation keys")
+        if len(train_keys) > 0 and len(val_keys) > 0 and len(test_keys) > 0:
+            self.train_keys, self.val_keys, self.test_keys = train_keys, val_keys, test_keys
+            print("Using pre-set train/validation/test keys")
         else:
             self.train_keys, self.val_keys = train_test_split(
                 keys, test_size=1 - train_val_split, random_state=seed
             )
         train_ids = np.where([group_id in self.train_keys for group_id in group_ids])[0]
         val_ids = np.where([group_id in self.val_keys for group_id in group_ids])[0]
+        test_ids = np.where([group_id in self.test_keys for group_id in group_ids])[0]
         self.training_data = torch.utils.data.Subset(data, train_ids)
         self.validation_data = torch.utils.data.Subset(data, val_ids)
+        self.test_data = torch.utils.data.Subset(data, test_ids)
 
     def _get_default_metrics(self, problem_type: Literal["classification", "regression", "softmax_regression"]):
         metrics = {
