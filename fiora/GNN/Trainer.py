@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import torch
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
-from torchmetrics import Accuracy, MetricTracker, MetricCollection, Precision, Recall, PrecisionRecallCurve, MeanSquaredError, MeanAbsoluteError, R2Score
+from torchmetrics import Accuracy, MetricTracker, MetricCollection, Precision, Recall, PrecisionRecallCurve, MeanSquaredError, MeanAbsoluteError, R2Score, PearsonCorrCoef
 from sklearn.model_selection import train_test_split
 from typing import Literal, List, Dict, Any
 
@@ -55,7 +55,9 @@ class Trainer(ABC):
                 }) if problem_type=="classification" else MetricCollection(
                 {
                     'mse': MeanSquaredError(),
-                    'mae': MeanAbsoluteError()
+                    'mae': MeanAbsoluteError(),
+                    'r2' : R2Score(),
+                    'pearson' : PearsonCorrCoef()
                 })).to(self.device)
                 for data_split in ["train", "val", "masked_val", "test"]
             }
