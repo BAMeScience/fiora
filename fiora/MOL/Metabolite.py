@@ -340,6 +340,7 @@ class Metabolite:
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,
+                weight = self.ExactMolWeight,
                 
                 # masks and groups
                 validation_mask=self.is_edge_not_in_ring.bool(),
