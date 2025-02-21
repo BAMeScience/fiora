@@ -37,6 +37,7 @@ class Metabolite:
         self.morganFingerCountOnes = self.morganFinger.GetNumOnBits()
         self.id = id
         self.loss_weight = 1.0
+        self.precursor_positive = None
 
     def __repr__(self):
         return f"<Metabolite: {self.SMILES}>"
@@ -62,6 +63,10 @@ class Metabolite:
             elif bit_other < bit_this:
                 return False
         return False
+    
+    # Setter for Precursor Adduct
+    def set_precursor_positive(self, precursor_adduct):
+        self.precursor_positive = (precursor_adduct == "[M+H]+")
     
     def get_id(self):
         return self.id
@@ -103,11 +108,17 @@ class Metabolite:
 
     def calc_element_distribution(self):
         element_distribution = {}
+        total_elements = len(self.node_elements)
+
         for elem in self.node_elements:
             if elem in element_distribution:
                 element_distribution[elem] += 1
             else:
                 element_distribution[elem] = 1
+
+            # Convert counts to ratios
+        for elem in element_distribution:
+            element_distribution[elem] /= total_elements
 
         return element_distribution
     
@@ -341,6 +352,7 @@ class Metabolite:
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,
                 weight = self.ExactMolWeight,
+                precursor_positive = self.precursor_positive,
                 
                 # masks and groups
                 validation_mask=self.is_edge_not_in_ring.bool(),
