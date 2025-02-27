@@ -321,7 +321,7 @@ class Metabolite:
             'counts': self.compiled_counts.sum().tolist() / 2.0,
             'ms_all_counts': sum(int_list),
             'coverage': (self.compiled_counts.sum().tolist() / 2.0) / sum(int_list),
-            'coverage_wo_prec': (self.edge_break_count.sum().tolist() / 2.0) / sum(int_list),
+            'coverage_wo_prec': (self.edge_break_count.sum().tolist() / 2.0) / (sum(int_list) - self.precursor_count.tolist()),
             'precursor_prob': self.precursor_count.tolist() / (self.compiled_counts.sum().tolist() / 2.0) if (self.compiled_counts.sum().tolist() / 2.0) > 0 else 0.0,
             'precursor_raw_prob': self.precursor_count.tolist() / sum(int_list), 
             'num_peaks': len(mz_fragments),
