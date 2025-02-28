@@ -122,6 +122,17 @@ class Metabolite:
 
         return element_distribution
     
+    def calc_abs_elem_distr(self):
+        element_distribution = {}
+
+        for elem in self.node_elements:
+            if elem in element_distribution:
+                element_distribution[elem] += 1
+            else:
+                element_distribution[elem] = 1
+
+        return element_distribution
+    
     def compute_graph_attributes(self, node_encoder = None, bond_encoder = None):
 
         # Adjacency
@@ -364,7 +375,9 @@ class Metabolite:
 
                 ccs = self.ccs,
                 ccs_mask = self.ccs_mask,
-                )
+
+                smiles = self.SMILES
+            )
         if with_labels:
             return Data(
                 x=self.node_features,
