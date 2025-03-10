@@ -1,11 +1,17 @@
-# **F<span style="font-variant:small-caps;">iora</span>**
+# **FIORA**
 
+**FIORA** is an *in silico* fragmentation algorithm for small compounds that produces simulated tandem mass spectra (MS/MS). The framework employs a graph neural network to predict bond cleavages and fragment ion intensities via edge prediction. Additionally, **FIORA** can estimate retention times (RT) and collision cross sections (CCS) of the compounds.
+
+> Nowatzky, Y., Russo, F.F., Lisec, J. et al. FIORA: Local neighborhood-based prediction of compound mass spectra from single fragmentation events. Nat Commun 16, 2298 (2025). https://doi.org/10.1038/s41467-025-57422-4
+
+
+<!---
 > **Disclaimer: Early Development / Prototype Notice**<br>
-> **F<span style="font-variant:small-caps;">iora</span>** is an algorithm in its early stages of development and is provided as a prototype.
+> **FIORA** is an algorithm in its early stages of development and is provided as a prototype.
 Performance is not guaranteed, functionality may be incomplete, and usability was not a central concern during this phase of development. 
 Users should exercise caution.
+-->
 
-**F<span style="font-variant:small-caps;">iora</span>** is an *in silico* fragmentation algorithm for small compounds that produces simulated tandem mass spectra (MS/MS). The framework employs a graph neural network to predict bond cleavages and fragment ion intensities via edge prediction. Additionally, **F<span style="font-variant:small-caps;">iora</span>** can estimate retention times (RT) and collision cross sections (CCS) of the compounds.
 
 ## Requirements
 
@@ -17,7 +23,7 @@ Developed and tested with the following systems and versions:
 
 ## Installation
 
-Installation guide for the Fiora Python package (under 10 minutes):
+Installation guide for the FIORA Python package (under 10 minutes):
 
 Clone the project folder 
 
