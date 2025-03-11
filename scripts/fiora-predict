@@ -102,15 +102,54 @@ def build_metabolites(df: pd.DataFrame, model_params: dict):
     df["summary"] = df.apply(lambda x: {key: x[name] for key, name in metadata_key_map.items()}, axis=1)
     df.apply(lambda x: x["Metabolite"].add_metadata(x["summary"], setup_encoder, rt_encoder), axis=1)
     
-    # Fragment coumpounds
+    # Fragment compounds
     df["Metabolite"].apply(lambda x: x.fragment_MOL(depth=1))
     #df.apply(lambda x: x["Metabolite"].match_fragments_to_peaks(x["peaks"]["mz"], x["peaks"]["intensity"], tolerance=x["ppm_peak_tolerance"]), axis=1)
     
     return df, invalid_df
 
+def prepare_output(args, df, model):
+    df["peaks"] = df["sim_peaks"]
+    df["Formula"] = df["Metabolite"].apply(lambda x: x.Formula)
+    df["Precursor_MZ"] = df["Metabolite"].apply(lambda x: x.get_theoretical_precursor_mz(ion_type=x.metadata["precursor_mode"]))
+    
+    # Rename certain columns
+    df["RETENTIONTIME"] = df["RT_pred"]
+    df["PRECURSOR_MZ"] = df["Precursor_MZ"]
+    df["FORMULA"] = df["Formula"]
+    df["CCS"] = df["CCS_pred"] 
+    version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
+    df["Comment"] = f"\"In silico generated spectrum by {version}\""
+    df["COMMENT"] = df["Comment"]
+    
+    # Write output file
+    if args.output.endswith(".msp"):
+        df["Collision_energy"] = df["CE"]
+        headers=["Name", "SMILES", "Formula", "Precursor_MZ", "Precursor_type", "Instrument_type", "Collision_energy"]
+        if args.rt: headers.append("RETENTIONTIME")
+        if args.ccs: headers.append("CCS")
+        headers.append("Comment")
+        mspWriter.write_msp(df, path=args.output, write_header=True, headers=headers, annotation=args.annotation)
+    elif args.output.endswith(".mgf"):
+        headers = ["TITLE", "SMILES", "FORMULA", "PRECURSOR_MZ", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
+        if args.rt: headers.append("RETENTIONTIME")
+        if args.ccs: headers.append("CCS")
+        headers.append("COMMENT")
+        mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
+    else:
+        print(f"Warning: Unknown output format {args.output}. Writing results to {args.output}.mgf instead.")
+        args.output = args.output + ".mgf"
+        headers = ["TITLE", "SMILES", "FORMULA", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
+        if args.rt: headers.append("RETENTIONTIME")
+        if args.ccs: headers.append("CCS")
+        headers.append("COMMENT")
+        mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
+
+
 def main():
     args = parse_args()
-    print(f'Running fiora prediction with the following parameters: {args}\n')
+    if args.debug:
+        print(f'Running fiora prediction with the following parameters: {args}\n')
 
     # Load model
     if args.model == "default":
@@ -147,36 +186,9 @@ def main():
     
     # Simulate compound fragmentation
     df = fiora.simulate_all(df, model, groundtruth=False)
-    df["peaks"] = df["sim_peaks"]
-    df["RETENTIONTIME"] = df["RT_pred"] 
-    df["CCS"] = df["CCS_pred"] 
-    version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
-    df["COMMENT"] = f"\"In silico generated spectrum by {version}\""
     
-    # Write output file
-    if args.output.endswith(".msp"):
-        df["Collision_energy"] = df["CE"]
-        df["Comment"] = df["COMMENT"]
-        headers=["Name", "SMILES", "Precursor_type", "Instrument_type", "Collision_energy"]
-        if args.rt: headers.append("RETENTIONTIME")
-        if args.ccs: headers.append("CCS")
-        headers.append("Comment")
-        mspWriter.write_msp(df, path=args.output, write_header=True, headers=headers)
-    elif args.output.endswith(".mgf"):
-        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
-        if args.rt: headers.append("RETENTIONTIME")
-        if args.ccs: headers.append("CCS")
-        headers.append("COMMENT")
-        mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
-    else:
-        print(f"Warning: Unknown output format {args.output}. Writing results to {args.output}.mgf instead.")
-        args.output = args.output + ".mgf"
-        headers = ["TITLE", "SMILES", "PRECURSORTYPE", "COLLISIONENERGY", "INSTRUMENTTYPE"]
-        if args.rt: headers.append("RETENTIONTIME")
-        if args.ccs: headers.append("CCS")
-        headers.append("COMMENT")
-        mgfWriter.write_mgf(df, path=args.output, write_header=True, headers=headers, header_map={"TITLE": "Name", "PRECURSORTYPE": "Precursor_type", "INSTRUMENTTYPE": "Instrument_type", "COLLISIONENERGY": "CE"}, annotation=args.annotation)
-
+    # Prepare Output
+    prepare_output(args, df, model)
     print("Finished prediction.")
 
 
