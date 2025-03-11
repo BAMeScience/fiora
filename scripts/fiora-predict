@@ -26,9 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-o", "--output", help="output file path (.mgf/.msp file)", type=str, required=True)
     parser.add_argument("--model", help="path to prediction model (.pt file)", type=str, default="default")
     parser.add_argument("--dev", help="Device to the model. For example cuda:0 for GPU number 0.", type=str, default="cpu")
+    parser.add_argument("--min_prob", help="Minimum peak probability to be recorded in the spectrum", type=float, default=0.001)
 
-
-    
     parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="predict retention time", default=False)
     parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=False)
     parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=False)
@@ -185,7 +184,7 @@ def main():
             print("Warning: Some SMILES could not be read or formatted. Run with --debug flag for more information.")
     
     # Simulate compound fragmentation
-    df = fiora.simulate_all(df, model, groundtruth=False)
+    df = fiora.simulate_all(df, model, groundtruth=False, min_intensity=args.min_prob)
     
     # Prepare Output
     prepare_output(args, df, model)
