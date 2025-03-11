@@ -6,7 +6,7 @@ from pyteomics import pylab_aux as pa, usi
 import pandas as pd
 import spectrum_utils.fragment_annotation as fa
 from fiora.visualization.define_colors import *
-from typing import Dict
+from typing import Dict, List
 
 
 # From spectrum utils issue https://github.com/bittremieux/spectrum_utils/issues/56
@@ -50,7 +50,7 @@ def annotate_and_plot(spectrum, mz_fragments, with_grid: bool=False, ppm_toleran
 
     return ax
 
-def plot_spectrum(spectrum: Dict, second_spectrum: Dict|None=None, highlight_matches: bool=False, facet_plot=False, ppm_tolerance: int=100, charge=0, title=None, out=None, with_grid=False, ax=None, show=False, color=None):
+def plot_spectrum(spectrum: Dict, second_spectrum: Dict|None=None, highlight_matches: bool=False, mz_matches: List[int]=[], facet_plot=False, ppm_tolerance: int=100, charge=0, title=None, out=None, with_grid=False, ax=None, show=False, color=None):
     top_spectrum = sus.MsmsSpectrum("None", 0, charge, spectrum['peaks']['mz'], spectrum['peaks']['intensity'])
     if color:
         set_default_peak_color(color)
@@ -81,6 +81,13 @@ def plot_spectrum(spectrum: Dict, second_spectrum: Dict|None=None, highlight_mat
 
     # Single spectrum
     else:
+        
+        if highlight_matches and mz_matches:
+            set_custom_annotation()
+
+            x_string = "".join([f"X[+{mz}]" for mz in sorted(mz_matches)])
+            top_spectrum.annotate_proforma(x_string, ppm_tolerance, "ppm")
+        
         sup.spectrum(top_spectrum, grid=with_grid, ax=ax)
         if with_grid:
             ax.set_ylim(0, 1.1)
