@@ -41,7 +41,7 @@ class Fragment:
 
         self.modes = constants.DEFAULT_MODES
         self.mz = {mode: self.neutral_mass + constants.ADDUCT_WEIGHTS[mode] for mode in self.modes}
-        self.mz.update({mode.replace("]+", "]-"): self.neutral_mass + constants.ADDUCT_WEIGHTS[mode] for mode in self.modes})
+        self.mz.update({mode.replace("]+", "]-"): self.neutral_mass + constants.ADDUCT_WEIGHTS[mode.replace("]+", "]-")] for mode in self.modes})
     
     def __eq__(self, __o: object) -> bool:
         if self.neutral_mass != __o.neutral_mass:
