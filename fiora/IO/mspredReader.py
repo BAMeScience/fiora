@@ -44,11 +44,14 @@ def read(dir):
     for file in os.listdir(dir):
         if file.endswith(".json"):
             temp_dict = {"file": file, "name": file.split(".")[0].replace("pred_", "")}
-            with open(os.path.join(dir, file), 'r') as fp:
-                values = json.load(fp)
-                peaks = convert_dict_to_mz(values)
-            temp_dict["peaks"] = peaks 
-            
-            spectra.append(temp_dict)
+            try:
+                with open(os.path.join(dir, file), 'r') as fp:
+                    values = json.load(fp)
+                    peaks = convert_dict_to_mz(values)
+                temp_dict["peaks"] = peaks 
+                
+                spectra.append(temp_dict)
+            except:
+                print(f"Warning: unable to read {file}")
     
     return pd.DataFrame(spectra)
