@@ -1,9 +1,15 @@
 # **FIORA**
 
-**FIORA** is an *in silico* fragmentation algorithm for small compounds that produces simulated tandem mass spectra (MS/MS). The framework employs a graph neural network to predict bond cleavages and fragment ion intensities via edge prediction. Additionally, **FIORA** can estimate retention times (RT) and collision cross sections (CCS) of the compounds.
+FIORA is an *in silico* fragmentation algorithm for small compounds that generates tandem mass spectra (MS/MS). The framework employs a graph neural network to predict bond cleavages and fragment ion intensities via edge prediction. Additionally, FIORA can estimate retention times (RT) and collision cross sections (CCS) of the compounds.
+
+<figure>
+  <img src="images/graphical_abstract.png" alt="Graphical Abstract" style="width:100%;">
+  <figcaption>Illustration of the in silico fragmentation workflow (bottom panel) designed to simulate experimental MS/MS fragmentation (top panel). 
+
+  The figure is sourced from our publication (referenced below) and is licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).</figcaption>
+</figure>
 
 > Nowatzky, Y., Russo, F.F., Lisec, J. et al. FIORA: Local neighborhood-based prediction of compound mass spectra from single fragmentation events. Nat Commun 16, 2298 (2025). https://doi.org/10.1038/s41467-025-57422-4
-
 
 <!---
 > **Disclaimer: Early Development / Prototype Notice**<br>
@@ -68,3 +74,14 @@ Run the fiora-predict from within this directory
     fiora-predict -i examples/example_input.csv  -o examples/example_spec.mgf
 
 By default, an open-source model is selected automatically, and predictions typically complete within a few seconds. For faster performance, specify a GPU device using the `--dev` option (e.g., `--dev cuda:0`). The output file (e.g., examples/example_spec.mgf) can be compared with the [expected results](examples/expected_output.mgf) to verify model accuracy. This verification is automatically performed by running pytest (as described above).
+
+## The Algorithm
+
+FIORA has been developed as a computational tool to predict bond cleavages that occur in the MS/MS fragmentation process and estimate the probabilities of resulting fragment ions. To that end, FIORA utilizes graph neural networks to learn local molecular neighborhoods around bonds, combined with edge prediction to simulate bond dissociation. The prediction determines which fragment (left or right of the bond cleavage, with up to four possible hydrogen losses) retains the charge and which becomes the neutral loss.The figure below illustrates an example fragmentation prediction for a single bond.
+
+<figure>
+  <img src="images/fragmentation_algorithm.png" alt="Fragmentation Algorithm" style="width:100%;">
+  <figcaption>Illustration of FIORA's fragmentation algorithm.  Initially, the local neighborhood (highlighted in blue) of the designated bond is learned through multiple graph convolutions (two shown here). Based on this molecular substructure and bond features, FIORA predicts fragment abundances and calculates peak probabilities, accounting for all other fragments.
+
+  The figure is sourced from our publication (referenced on top) and is licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).</figcaption>
+</figure>
