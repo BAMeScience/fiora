@@ -4,12 +4,12 @@ Meet FIORA! An in silico fragmentation algorithm designed to predict tandem mass
 
 > Nowatzky, Y., Russo, F.F., Lisec, J. et al. FIORA: Local neighborhood-based prediction of compound mass spectra from single fragmentation events. Nat Commun 16, 2298 (2025). https://doi.org/10.1038/s41467-025-57422-4
 
-<br><br>
+<br>
 
 <figure>
   <img src="images/graphical_abstract.png" alt="Graphical Abstract" style="width:100%;">
   <figcaption>Fig. 1 | Illustration of the in silico fragmentation workflow (bottom panel) designed to simulate experimental MS/MS fragmentation (top panel).
-   The figure is sourced from our publication (referenced above) and is licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).</figcaption>
+   The figure is sourced from our publication (referenced above) and is licensed under <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>.</figcaption>
 </figure>
 
 <!---
@@ -83,5 +83,5 @@ FIORA has been developed as a computational tool to predict bond cleavages that 
 <figure>
   <img src="images/fragmentation_algorithm.png" alt="Fragmentation Algorithm" style="width:100%;">
   <figcaption>Fig. 2 | Illustration of FIORA's fragmentation algorithm.  Initially, the local neighborhood (highlighted in blue) of the designated bond is learned through multiple graph convolutions (two shown here). Based on this molecular substructure and bond features, fragment abundances are predicted. In this example, FIORA predicts the loss of two hydrogen atoms, indicating the formation of a new double bond in the right fragment. 
-  The figure is sourced from our publication (referenced on top) and is licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).</figcaption>
+  The figure is sourced from our publication (referenced on top) and is licensed under <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>.</figcaption>
 </figure>
