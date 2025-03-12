@@ -1,15 +1,15 @@
 # **FIORA**
 
-<figure>
-  <img src="images/graphical_abstract.png" alt="Graphical Abstract" style="width:100%;">
-  <figcaption>Illustration of the in silico fragmentation workflow (bottom panel) designed to simulate experimental MS/MS fragmentation (top panel). 
-
-  Fig. 1 | The figure is sourced from our publication (referenced below) and is licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).</figcaption>
-</figure>
-
 FIORA is an *in silico* fragmentation algorithm for small compounds that generates tandem mass spectra (MS/MS). The framework employs a graph neural network to predict bond cleavages and fragment ion intensities via edge prediction. Additionally, FIORA can estimate retention times (RT) and collision cross sections (CCS) of the compounds.
 
 > Nowatzky, Y., Russo, F.F., Lisec, J. et al. FIORA: Local neighborhood-based prediction of compound mass spectra from single fragmentation events. Nat Commun 16, 2298 (2025). https://doi.org/10.1038/s41467-025-57422-4
+
+<figure>
+  <img src="images/graphical_abstract.png" alt="Graphical Abstract" style="width:100%;">
+  <figcaption>Fig. 1 | Illustration of the in silico fragmentation workflow (bottom panel) designed to simulate experimental MS/MS fragmentation (top panel). 
+
+   The figure is sourced from our publication (referenced above) and is licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).</figcaption>
+</figure>
 
 <!---
 > **Disclaimer: Early Development / Prototype Notice**<br>
