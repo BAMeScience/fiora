@@ -80,7 +80,12 @@ class Metabolite:
     def set_loss_weight(self, weight):
         self.loss_weight = weight
 
-    def get_theoretical_precursor_mz(self, ion_type: str):
+    def get_theoretical_precursor_mz(self, ion_type: str=None):
+        if ion_type is None:
+            if hasattr(self, 'metadata') and 'precursor_mode' in self.metadata:
+                ion_type = self.metadata['precursor_mode']
+            else:
+                raise ValueError("Ion type is not specified and no precursor_mode found in metadata.")
         return self.ExactMolWeight + ADDUCT_WEIGHTS[ion_type]
 
     def get_morganFinger(self):
@@ -94,14 +99,15 @@ class Metabolite:
         raise ValueError(f"Unknown type of fingerprint: {finger}. Cannot compare Metabolites.")
     
     # draw
-    def draw(self, ax=plt):
+    def draw(self, ax=plt, show: bool=False):
         img = Draw.MolToImage(self.MOL, ax=ax)
-        
+    
         ax.grid(False)
         ax.tick_params(axis='both', bottom=False, labelbottom=False, left=False, labelleft=False)
         ax.imshow(img)
         ax.axis("off")
-   
+        if show:
+            plt.show()
         return img
 
 
