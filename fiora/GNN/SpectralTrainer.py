@@ -25,8 +25,9 @@ class SpectralTrainer(Trainer):
         if metric_dict:
             self.metrics = {
                 data_split: MetricTracker(MetricCollection({
-                        t: M() for t,M in metric_dict.items()
-                    })).to(device)
+                        t: M() for t, M in metric_dict.items()
+                    }), 
+                    maximize=False).to(device)
                 for data_split in ["train", "val", "masked_val", "test"]
             }
         else:
