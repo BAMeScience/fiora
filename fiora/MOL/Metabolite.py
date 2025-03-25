@@ -252,7 +252,7 @@ class Metabolite:
 
 
         self.edge_break_count = torch.zeros(size = self.edge_break_labels.size(), dtype=torch.float32)
-        self.edge_break_labels2 = torch.zeros(size = self.edge_break_labels.size(), dtype=torch.float32)
+        #self.edge_break_labels2 = torch.zeros(size = self.edge_break_labels.size(), dtype=torch.float32)
         self.precursor_count, self.precursor_prob, self.precursor_sqrt_prob  = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
                 
         
@@ -265,7 +265,7 @@ class Metabolite:
                 continue
             edge_index = torch.logical_or(self.edges == torch.tensor(edge), self.edges == torch.tensor(edge[::-1])).all(dim=1).nonzero().squeeze()
             self.edge_break_count[edge_index] += values['intensity']
-            self.edge_break_labels2[edge_index] = 1.0
+            #self.edge_break_labels2[edge_index] = 1.0
             
             forward_idx = ((torch.tensor(edge) == self.edges).sum(dim=1) == 2).nonzero().squeeze()
             backward_idx = ((torch.tensor(edge[::-1]) == self.edges).sum(dim=1) == 2).nonzero().squeeze()
@@ -279,19 +279,19 @@ class Metabolite:
     
         
         # Compile probability vectors  
-        self.compiled_counts = torch.cat([self.edge_break_count.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
-        self.compiled_probs = 2 * self.compiled_counts / torch.sum(self.compiled_counts)
+        # self.compiled_counts = torch.cat([self.edge_break_count.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
+        # self.compiled_probs = 2 * self.compiled_counts / torch.sum(self.compiled_counts)
         
         # select only "[M-H]+" columns [1 and 4]
-        col_ids = [self.mode_mapper["[M-H]+"], self.mode_mapper["[M-H]+"] + len(self.mode_mapper)]
-        self.compiled_counts2 = torch.cat([self.edge_count_matrix[:,col_ids].flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
-        self.compiled_probs2 = 2 * self.compiled_counts2 / torch.sum(self.compiled_counts2)
+        # col_ids = [self.mode_mapper["[M-H]+"], self.mode_mapper["[M-H]+"] + len(self.mode_mapper)]
+        # self.compiled_counts2 = torch.cat([self.edge_count_matrix[:,col_ids].flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
+        # self.compiled_probs2 = 2 * self.compiled_counts2 / torch.sum(self.compiled_counts2)
         
         # select default trinity: "[M+H]+" [M-H]+ [M-3H]+
-        col_ids = [self.mode_mapper["[M+H]+"], self.mode_mapper["[M-H]+"], self.mode_mapper["[M-3H]+"]]
-        col_ids += [c+len(self.mode_mapper) for c in col_ids]
-        self.compiled_counts6 = torch.cat([self.edge_count_matrix[:,col_ids].flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
-        self.compiled_probs6 = 2 * self.compiled_counts6 / torch.sum(self.compiled_counts6)
+        # col_ids = [self.mode_mapper["[M+H]+"], self.mode_mapper["[M-H]+"], self.mode_mapper["[M-3H]+"]]
+        # col_ids += [c+len(self.mode_mapper) for c in col_ids]
+        # self.compiled_counts6 = torch.cat([self.edge_count_matrix[:,col_ids].flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
+        # self.compiled_probs6 = 2 * self.compiled_counts6 / torch.sum(self.compiled_counts6)
 
         # select all columns
         # COMPILED VECTORS COUNTS & PROBABILITIES FOR END-TO-END PREDICTION! Default is compiled_probsALL
@@ -303,20 +303,20 @@ class Metabolite:
         self.compiled_probsSQRT = 2 * self.compiled_countsSQRT / torch.sum(self.compiled_countsSQRT)
         
         # Deemphasized precursor (DEPRE)
-        self.compiled_countsDEPRE = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1) / 2.0, self.precursor_count.unsqueeze(dim=-1) / 2.0])
-        self.compiled_probsDEPRE = 2 * self.compiled_countsDEPRE / torch.sum(self.compiled_countsDEPRE)
+        # self.compiled_countsDEPRE = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1) / 2.0, self.precursor_count.unsqueeze(dim=-1) / 2.0])
+        # self.compiled_probsDEPRE = 2 * self.compiled_countsDEPRE / torch.sum(self.compiled_countsDEPRE)
         
         # Precursor removal
-        self.compiled_counts_wo_prec = torch.cat([self.edge_count_matrix.flatten(), torch.zeros(1), torch.zeros(1)])
-        self.compiled_probs_wo_prec = 2 * self.compiled_counts_wo_prec / torch.sum(self.compiled_counts_wo_prec)
+        # self.compiled_counts_wo_prec = torch.cat([self.edge_count_matrix.flatten(), torch.zeros(1), torch.zeros(1)])
+        # self.compiled_probs_wo_prec = 2 * self.compiled_counts_wo_prec / torch.sum(self.compiled_counts_wo_prec)
         
         
         # MASKS
-        self.compiled_validation_mask = torch.cat([self.is_edge_not_in_ring.bool().squeeze(), torch.tensor([True, True], dtype=bool)], dim=-1)
-        self.compiled_validation_mask2 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 2), torch.tensor([True, True], dtype=bool)], dim=-1)
-        self.compiled_validation_mask6 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 6), torch.tensor([True, True], dtype=bool)], dim=-1)
+        # self.compiled_validation_mask = torch.cat([self.is_edge_not_in_ring.bool().squeeze(), torch.tensor([True, True], dtype=bool)], dim=-1)
+        # self.compiled_validation_mask2 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 2), torch.tensor([True, True], dtype=bool)], dim=-1)
+        # self.compiled_validation_mask6 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 6), torch.tensor([True, True], dtype=bool)], dim=-1)
         self.compiled_validation_maskALL = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), len(self.mode_mapper)*2), torch.tensor([True, True], dtype=bool)], dim=-1)
-        self.compiled_forward_mask = torch.cat([self.edge_forward_direction.squeeze(), torch.tensor([True, False], dtype=bool)], dim=-1)
+        # self.compiled_forward_mask = torch.cat([self.edge_forward_direction.squeeze(), torch.tensor([True, False], dtype=bool)], dim=-1)
     
         #self.compiled_validation_mask2 = 
     
@@ -324,11 +324,11 @@ class Metabolite:
         max_intensity = max(int_list)
         intensity_filter_threshold = 0.01
         self.match_stats = {
-            'counts': self.compiled_counts.sum().tolist() / 2.0,
+            'counts': self.compiled_countsALL.sum().tolist() / 2.0, # self.compiled_counts.sum().tolist() / 2.0,
             'ms_all_counts': sum(int_list),
-            'coverage': (self.compiled_counts.sum().tolist() / 2.0) / sum(int_list),
+            'coverage': (self.compiled_countsALL.sum().tolist() / 2.0) / sum(int_list),
             'coverage_wo_prec': (self.edge_break_count.sum().tolist() / 2.0) / (sum(int_list) - self.precursor_count.tolist()),
-            'precursor_prob': self.precursor_count.tolist() / (self.compiled_counts.sum().tolist() / 2.0) if (self.compiled_counts.sum().tolist() / 2.0) > 0 else 0.0,
+            'precursor_prob': self.precursor_count.tolist() / (self.compiled_countsALL.sum().tolist() / 2.0) if (self.compiled_countsALL.sum().tolist() / 2.0) > 0 else 0.0,
             'precursor_raw_prob': self.precursor_count.tolist() / sum(int_list), 
             'num_peaks': len(mz_fragments),
             'num_peak_matches': len(self.peak_matches),
@@ -357,14 +357,9 @@ class Metabolite:
                 
                 # labels
                 y=self.edge_break_labels,
-                compiled_probs=self.compiled_probs,
-                compiled_probs2=self.compiled_probs2,
-                compiled_probs6=self.compiled_probs6,
                 compiled_probsALL=self.compiled_probsALL,
                 compiled_probsSQRT=self.compiled_probsSQRT,
-                compiled_probsDEPRE=self.compiled_probsDEPRE,
-                compiled_probs_wo_prec=self.compiled_probs_wo_prec,
-                compiled_counts=self.compiled_counts,
+                # compiled_counts=self.compiled_counts,
                 edge_break_count=self.edge_break_count,
                 #edge_break_prob=self.edge_break_prob,
                 #edge_break_prob_wo_precursor=self.edge_break_prob_wo_precursor,
@@ -377,9 +372,7 @@ class Metabolite:
                 
                 # masks and groups
                 validation_mask=self.is_edge_not_in_ring.bool(),
-                compiled_validation_mask = self.compiled_validation_mask,
-                compiled_validation_mask2 = self.compiled_validation_mask2,
-                compiled_validation_mask6 = self.compiled_validation_mask6,
+                # compiled_validation_mask = self.compiled_validation_mask,
                 compiled_validation_maskALL = self.compiled_validation_maskALL,
                 
                 # group identity and loss weights
