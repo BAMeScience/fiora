@@ -116,18 +116,20 @@ class Metabolite:
         self.Graph = mol_to_graph(self.MOL)
     
     
-    def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None) -> None:
+    def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None, free_memory: bool = True) -> None:
 
         # Adjacency
-        self.A =  get_adjacency_matrix(self.Graph)
-        self.Atilde =  self.A + torch.eye(self.A.shape[0])
-        self.Id = get_identity_matrix(self.A)
-        self.deg = get_degree_matrix(self.A)
-        self.Anorm = self.A / self.deg
-        self.edges = self.A.nonzero()
-        self.edges_as_tuples = get_edges(self.A)
-        #self.AL, self.AR, self.edges  = compute_edge_related_helper_matrices(self.A, self.deg)
-        self.AL, self.AR = get_helper_matrices_from_edges(self.edges_as_tuples, self.A)
+        A =  get_adjacency_matrix(self.Graph)
+        self.edges_as_tuples = get_edges(A)
+
+        # Graph attributes (obsolete)
+        # self.Atilde =  self.A + torch.eye(self.A.shape[0])
+        # self.Id = get_identity_matrix(self.A)
+        # self.deg = get_degree_matrix(self.A)
+        # self.Anorm = self.A / self.deg
+        # self.edges = self.A.nonzero()
+        # self.AL, self.AR, self.edges  = compute_edge_related_helper_matrices(self.A, self.deg)
+        # self.AL, self.AR = get_helper_matrices_from_edges(self.edges_as_tuples, self.A)
         
         # Labels
         self.is_node_aromatic = torch.tensor([[self.Graph.nodes[atom]['is_aromatic'] for atom in self.Graph.nodes()]], dtype=torch.float32).t()
@@ -215,16 +217,16 @@ class Metabolite:
         self.fragmentation_tree = FragmentationTree(self.MOL)
         self.fragmentation_tree.build_fragmentation_tree(self.MOL, self.edges_as_tuples, depth=depth)
     
-    def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_mapper=None, tolerance=DEFAULT_PPM):
+    def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_mapper=None, tolerance=DEFAULT_PPM, match_stats_only: bool = False):
         self.peak_matches = self.fragmentation_tree.match_peak_list(mz_fragments, int_list, tolerance=tolerance)
         self.edge_breaks = [frag.edges for mz in self.peak_matches.keys() for frag in self.peak_matches[mz]['fragments']]
         self.edge_breaks = [e for edges in self.edge_breaks for e in edges] # Flatten the edge breaks
-        self.edge_break_labels = torch.tensor([[1.0 if (u, v) in self.edge_breaks or (v, u) in self.edge_breaks else 0.0 for u,v in self.edges_as_tuples]], dtype=torch.float32).t()
+        edge_break_labels = torch.tensor([[1.0 if (u, v) in self.edge_breaks or (v, u) in self.edge_breaks else 0.0 for u,v in self.edges_as_tuples]], dtype=torch.float32).t()
         
         if mode_mapper:
             self.mode_mapper = mode_mapper
         else:
-            self.mode_mapper = {mode: i for i, mode in enumerate(DEFAULT_MODES)} #{"[M+H]+": 0, "[M-H]+": 1, "[M-3H]+": 2}
+            self.mode_mapper = {mode: i for i, mode in enumerate(DEFAULT_MODES)} # e.g. "[M+H]+": 0 etc.
 
         # Flatten out all edges from fragments
         self.edge_intensities = []
@@ -237,26 +239,12 @@ class Metabolite:
 
                     self.edge_intensities.append(entry)
 
-        
-        # self.edge_intensities = [(edge, {
-        # 'intensity': self.peak_matches[mz]["intensity"] / len(self.peak_matches[mz]['edges']), 
-        # 'relative_intensity': self.peak_matches[mz]["relative_intensity"] / len(self.peak_matches[mz]['edges']),
-        # 'relative_sqrt_intensity': self.peak_matches[mz]["relative_sqrt_intensity"] / len(self.peak_matches[mz]['edges']),
-        # 'relative_intensity_wo_precursor': self.peak_matches[mz]["relative_intensity_wo_precursor"] / len(self.peak_matches[mz]['edges']),
-        # 'fragment': self.peak_matches[mz]["fragments"][i],
-        # 'break_side': self.peak_matches[mz]["break_sides"][i],
-        # 'ion_mode': self.peak_matches[mz]["ion_modes"][i][0]
-        # })
-        # for mz in self.peak_matches.keys() for i, edge in enumerate(self.peak_matches[mz]['edges'])]
 
-
-
-        self.edge_break_count = torch.zeros(size = self.edge_break_labels.size(), dtype=torch.float32)
-        #self.edge_break_labels2 = torch.zeros(size = self.edge_break_labels.size(), dtype=torch.float32)
+        self.edge_break_count = torch.zeros(size = edge_break_labels.size(), dtype=torch.float32)
         self.precursor_count, self.precursor_prob, self.precursor_sqrt_prob  = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
                 
         
-        self.edge_count_matrix = torch.zeros(size = (self.edge_break_labels.shape[0], 2*len(self.mode_mapper)), dtype=torch.float32)
+        self.edge_count_matrix = torch.zeros(size = (edge_break_labels.shape[0], 2*len(self.mode_mapper)), dtype=torch.float32)
         
         # Determining edge break probabilites from peak intensities. Multiple edges for the same fragment -> divide by number of edges. Multiple fragments from edge -> add intensities.
         for edge, values in self.edge_intensities:
@@ -265,7 +253,6 @@ class Metabolite:
                 continue
             edge_index = torch.logical_or(self.edges == torch.tensor(edge), self.edges == torch.tensor(edge[::-1])).all(dim=1).nonzero().squeeze()
             self.edge_break_count[edge_index] += values['intensity']
-            #self.edge_break_labels2[edge_index] = 1.0
             
             forward_idx = ((torch.tensor(edge) == self.edges).sum(dim=1) == 2).nonzero().squeeze()
             backward_idx = ((torch.tensor(edge[::-1]) == self.edges).sum(dim=1) == 2).nonzero().squeeze()
@@ -277,23 +264,11 @@ class Metabolite:
             self.edge_count_matrix[backward_idx, col] = values['intensity']
         
     
-        
+        "bond_features_one_hot",
         # Compile probability vectors  
         # self.compiled_counts = torch.cat([self.edge_break_count.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
         # self.compiled_probs = 2 * self.compiled_counts / torch.sum(self.compiled_counts)
         
-        # select only "[M-H]+" columns [1 and 4]
-        # col_ids = [self.mode_mapper["[M-H]+"], self.mode_mapper["[M-H]+"] + len(self.mode_mapper)]
-        # self.compiled_counts2 = torch.cat([self.edge_count_matrix[:,col_ids].flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
-        # self.compiled_probs2 = 2 * self.compiled_counts2 / torch.sum(self.compiled_counts2)
-        
-        # select default trinity: "[M+H]+" [M-H]+ [M-3H]+
-        # col_ids = [self.mode_mapper["[M+H]+"], self.mode_mapper["[M-H]+"], self.mode_mapper["[M-3H]+"]]
-        # col_ids += [c+len(self.mode_mapper) for c in col_ids]
-        # self.compiled_counts6 = torch.cat([self.edge_count_matrix[:,col_ids].flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
-        # self.compiled_probs6 = 2 * self.compiled_counts6 / torch.sum(self.compiled_counts6)
-
-        # select all columns
         # COMPILED VECTORS COUNTS & PROBABILITIES FOR END-TO-END PREDICTION! Default is compiled_probsALL
         self.compiled_countsALL = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
         self.compiled_probsALL = 2 * self.compiled_countsALL / torch.sum(self.compiled_countsALL)
@@ -302,24 +277,13 @@ class Metabolite:
         self.compiled_countsSQRT = torch.sqrt(self.compiled_countsALL)
         self.compiled_probsSQRT = 2 * self.compiled_countsSQRT / torch.sum(self.compiled_countsSQRT)
         
-        # Deemphasized precursor (DEPRE)
-        # self.compiled_countsDEPRE = torch.cat([self.edge_count_matrix.flatten(), self.precursor_count.unsqueeze(dim=-1) / 2.0, self.precursor_count.unsqueeze(dim=-1) / 2.0])
-        # self.compiled_probsDEPRE = 2 * self.compiled_countsDEPRE / torch.sum(self.compiled_countsDEPRE)
-        
-        # Precursor removal
-        # self.compiled_counts_wo_prec = torch.cat([self.edge_count_matrix.flatten(), torch.zeros(1), torch.zeros(1)])
-        # self.compiled_probs_wo_prec = 2 * self.compiled_counts_wo_prec / torch.sum(self.compiled_counts_wo_prec)
-        
+
         
         # MASKS
         # self.compiled_validation_mask = torch.cat([self.is_edge_not_in_ring.bool().squeeze(), torch.tensor([True, True], dtype=bool)], dim=-1)
-        # self.compiled_validation_mask2 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 2), torch.tensor([True, True], dtype=bool)], dim=-1)
-        # self.compiled_validation_mask6 = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), 6), torch.tensor([True, True], dtype=bool)], dim=-1)
         self.compiled_validation_maskALL = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), len(self.mode_mapper)*2), torch.tensor([True, True], dtype=bool)], dim=-1)
         # self.compiled_forward_mask = torch.cat([self.edge_forward_direction.squeeze(), torch.tensor([True, False], dtype=bool)], dim=-1)
-    
-        #self.compiled_validation_mask2 = 
-    
+        
         # Track additional statistics
         max_intensity = max(int_list)
         intensity_filter_threshold = 0.01
@@ -342,7 +306,29 @@ class Metabolite:
             'rel_fragment_conflicts': sum([len(match["fragments"]) > 1 for mz, match in self.peak_matches.items()]) / sum([(None not in match["edges"]) for mz, match in self.peak_matches.items()]) if sum([(None not in match["edges"]) for mz, match in self.peak_matches.items()]) > 0 else 0,
             'ms_num_all_peaks': len(mz_fragments)  
         }
-            
+
+        if match_stats_only:
+            self.free_memory()
+
+
+    def free_memory(self):
+        attributes_to_free = [
+            "edge_break_count", "precursor_count", 
+            "precursor_prob", "precursor_sqrt_prob", "edge_count_matrix", 
+            "compiled_countsALL", "compiled_probsALL", "compiled_countsSQRT", 
+            "compiled_probsSQRT", "compiled_validation_maskALL",
+            "edge_breaks", "edge_intensities", "setup_features", 
+            "setup_features_per_edge", "node_features", "node_features_one_hot", 
+            "bond_features", "bond_features_one_hot"
+        ] # Tensors from peak matching
+
+
+        for attr in attributes_to_free:
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+
+
     def as_geometric_data(self, with_labels=True):
         if with_labels:
             return Data(
