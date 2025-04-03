@@ -1,7 +1,8 @@
-import matplotlib.pyplot as plt
+import sys
 import numpy as np
 import torch
 import warnings
+import matplotlib.pyplot as plt
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Draw
@@ -11,7 +12,7 @@ from rdkit import DataStructs
 from torch_geometric.data import Data
 from typing import Literal
 
-from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, ADDUCT_WEIGHTS
+from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, DEFAULT_MODE_MAP, ADDUCT_WEIGHTS
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
 from fiora.MOL.FragmentationTree import FragmentationTree 
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
@@ -116,10 +117,11 @@ class Metabolite:
         self.Graph = mol_to_graph(self.MOL)
     
     
-    def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None, free_memory: bool = True) -> None:
+    def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None, memory_safe: bool = False) -> None:
 
         # Adjacency
         A =  get_adjacency_matrix(self.Graph)
+        self.edges = A.nonzero()
         self.edges_as_tuples = get_edges(A)
 
         # Graph attributes (obsolete)
@@ -127,7 +129,6 @@ class Metabolite:
         # self.Id = get_identity_matrix(self.A)
         # self.deg = get_degree_matrix(self.A)
         # self.Anorm = self.A / self.deg
-        # self.edges = self.A.nonzero()
         # self.AL, self.AR, self.edges  = compute_edge_related_helper_matrices(self.A, self.deg)
         # self.AL, self.AR = get_helper_matrices_from_edges(self.edges_as_tuples, self.A)
         
@@ -141,25 +142,21 @@ class Metabolite:
         self.edge_backward_direction = torch.tensor([[bool(u > v) for u,v in self.edges_as_tuples]], dtype=torch.bool).t()
         
         # Lists
-        self.atoms_in_order = [self.Graph.nodes[atom]['atom'] for atom in self.Graph.nodes()]
-        self.node_elements = [self.Graph.nodes[atom]['atom'].GetSymbol() for atom in self.Graph.nodes()]
-        self.edge_bond_names = [self.Graph[u][v]['bond_type'].name for u,v in self.edges_as_tuples]
-        if bond_encoder:
-            self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in self.edge_bond_names], dtype=torch.long)
-        #self.edge_bond_types = torch.tensor([[bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in self.edge_bond_names]], dtype=torch.long).t()
+        if not memory_safe:
+            self.atoms_in_order = [self.Graph.nodes[atom]['atom'] for atom in self.Graph.nodes()]
+            self.node_elements = [self.Graph.nodes[atom]['atom'].GetSymbol() for atom in self.Graph.nodes()]
+            edge_bond_names = [self.Graph[u][v]['bond_type'].name for u,v in self.edges_as_tuples]
         
         # Features
         if node_encoder:
             self.node_features = node_encoder.encode(self.Graph, encoder_type="number")
             self.node_features_one_hot = node_encoder.encode(self.Graph, encoder_type="one_hot")
         if bond_encoder:
+            self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in edge_bond_names], dtype=torch.int32)
             self.bond_features = bond_encoder.encode(self.Graph, self.edges_as_tuples, encoder_type="number")
             self.bond_features_one_hot = bond_encoder.encode(self.Graph, self.edges_as_tuples, encoder_type="one_hot")
         else:
             self.bond_features = torch.zeros(len(self.edges_as_tuples), 0, dtype=torch.float32)
-            
-        self.mode_mapper = {mode: i for i, mode in enumerate(DEFAULT_MODES)} # Set a default mode mapper, might be overwritten later
-
 
     def add_metadata(self, metadata, setup_encoder: SetupFeatureEncoder=None, rt_feature_encoder: SetupFeatureEncoder=None, process_metadata: bool = True, max_RT=30.0):
         self.metadata = metadata
@@ -217,16 +214,19 @@ class Metabolite:
         self.fragmentation_tree = FragmentationTree(self.MOL)
         self.fragmentation_tree.build_fragmentation_tree(self.MOL, self.edges_as_tuples, depth=depth)
     
-    def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_mapper=None, tolerance=DEFAULT_PPM, match_stats_only: bool = False):
+    def add_fragmentation_tree(self, fragmentation_tree: FragmentationTree):
+        self.fragmentation_tree = fragmentation_tree
+
+    def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_map_override=None, tolerance=DEFAULT_PPM, match_stats_only: bool = False):
         self.peak_matches = self.fragmentation_tree.match_peak_list(mz_fragments, int_list, tolerance=tolerance)
         self.edge_breaks = [frag.edges for mz in self.peak_matches.keys() for frag in self.peak_matches[mz]['fragments']]
         self.edge_breaks = [e for edges in self.edge_breaks for e in edges] # Flatten the edge breaks
         edge_break_labels = torch.tensor([[1.0 if (u, v) in self.edge_breaks or (v, u) in self.edge_breaks else 0.0 for u,v in self.edges_as_tuples]], dtype=torch.float32).t()
         
-        if mode_mapper:
-            self.mode_mapper = mode_mapper
+        if mode_map_override:
+            mode_map = mode_map_override
         else:
-            self.mode_mapper = {mode: i for i, mode in enumerate(DEFAULT_MODES)} # e.g. "[M+H]+": 0 etc.
+            mode_map = DEFAULT_MODE_MAP
 
         # Flatten out all edges from fragments
         self.edge_intensities = []
@@ -244,7 +244,7 @@ class Metabolite:
         self.precursor_count, self.precursor_prob, self.precursor_sqrt_prob  = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
                 
         
-        self.edge_count_matrix = torch.zeros(size = (edge_break_labels.shape[0], 2*len(self.mode_mapper)), dtype=torch.float32)
+        self.edge_count_matrix = torch.zeros(size = (edge_break_labels.shape[0], 2*len(mode_map)), dtype=torch.float32)
         
         # Determining edge break probabilites from peak intensities. Multiple edges for the same fragment -> divide by number of edges. Multiple fragments from edge -> add intensities.
         for edge, values in self.edge_intensities:
@@ -258,9 +258,9 @@ class Metabolite:
             backward_idx = ((torch.tensor(edge[::-1]) == self.edges).sum(dim=1) == 2).nonzero().squeeze()
             
             
-            col = self.mode_mapper[values["ion_mode"]] if values["break_side"]=="left" else self.mode_mapper[values["ion_mode"]] + len(self.mode_mapper) 
+            col = mode_map[values["ion_mode"]] if values["break_side"]=="left" else mode_map[values["ion_mode"]] + len(mode_map) 
             self.edge_count_matrix[forward_idx, col] = values['intensity']
-            col = (col + len(self.mode_mapper)) % (2*len(self.mode_mapper)) #to the other side of the break
+            col = (col + len(mode_map)) % (2*len(mode_map)) #to the other side of the break
             self.edge_count_matrix[backward_idx, col] = values['intensity']
         
     
@@ -281,7 +281,7 @@ class Metabolite:
         
         # MASKS
         # self.compiled_validation_mask = torch.cat([self.is_edge_not_in_ring.bool().squeeze(), torch.tensor([True, True], dtype=bool)], dim=-1)
-        self.compiled_validation_maskALL = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), len(self.mode_mapper)*2), torch.tensor([True, True], dtype=bool)], dim=-1)
+        self.compiled_validation_maskALL = torch.cat([torch.repeat_interleave(self.is_edge_not_in_ring.bool().squeeze(), len(mode_map)*2), torch.tensor([True, True], dtype=bool)], dim=-1)
         # self.compiled_forward_mask = torch.cat([self.edge_forward_direction.squeeze(), torch.tensor([True, False], dtype=bool)], dim=-1)
         
         # Track additional statistics
@@ -310,6 +310,10 @@ class Metabolite:
         if match_stats_only:
             self.free_memory()
 
+    def get_memory_usage(self):
+        memory_usage = {attr: sys.getsizeof(value) for attr, value in self.__dict__.items()}
+        total_size = sum(memory_usage.values())
+        return {"attributes": dict(sorted(memory_usage.items(), key=lambda x: x[1], reverse=True)), "total_size": total_size}
 
     def free_memory(self):
         attributes_to_free = [

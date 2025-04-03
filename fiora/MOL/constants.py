@@ -42,6 +42,7 @@ DEFAULT_DALTON = 0.05 # equiv: 100ppm of 500 m/z
 MIN_ABS_TOLERANCE = 0.01 # 0.02 # Tolerance aplied for small fragment when relative PPM gets too small
 #DEFAULT_MODES = ["[M+H]+", "[M-H]+", "[M-3H]+"]
 DEFAULT_MODES = ["[M+H]+", "[M]+", "[M-H]+", "[M-2H]+", "[M-3H]+"] #"[M-4H]+"] #, "[M-5H]+"]
+DEFAULT_MODE_MAP = {mode: i for i, mode in enumerate(DEFAULT_MODES)}
 #NEGATIVE_MODES = ["[M]-", "[M-H]-", "[M-2H]-", "[M-3H]-", "[M-4H]-"]
 
 
