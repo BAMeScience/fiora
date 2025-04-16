@@ -24,7 +24,7 @@ class MetaboliteIndex:
             entry["FragmentationTree"] =  FragmentationTree(metabolite.MOL)
             entry["FragmentationTree"].build_fragmentation_tree(metabolite.MOL, metabolite.edges_as_tuples, depth=depth)
 
-    def add_fragmentation_trees_to_metabolite_list(self, list_of_metabolites: List[Metabolite], graph_mismatch_policy=Literal["ignore", "recompute"]="recompute") -> None:
+    def add_fragmentation_trees_to_metabolite_list(self, list_of_metabolites: List[Metabolite], graph_mismatch_policy: Literal["ignore", "recompute"]="recompute") -> None:
         list_of_mismatched_ids = []
         
         for metabolite in list_of_metabolites:
