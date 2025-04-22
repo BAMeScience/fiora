@@ -152,7 +152,7 @@ class Metabolite:
             self.node_features = node_encoder.encode(self.Graph, encoder_type="number")
             self.node_features_one_hot = node_encoder.encode(self.Graph, encoder_type="one_hot")
         if bond_encoder:
-            self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in edge_bond_names], dtype=torch.int32)
+            self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in edge_bond_names], dtype=torch.int64)
             self.bond_features = bond_encoder.encode(self.Graph, self.edges_as_tuples, encoder_type="number")
             self.bond_features_one_hot = bond_encoder.encode(self.Graph, self.edges_as_tuples, encoder_type="one_hot")
         else:
@@ -346,7 +346,7 @@ class Metabolite:
                 
                 
                 # labels
-                y=self.edge_break_labels,
+                #y=self.edge_break_labels,
                 compiled_probsALL=self.compiled_probsALL,
                 compiled_probsSQRT=self.compiled_probsSQRT,
                 # compiled_counts=self.compiled_counts,
