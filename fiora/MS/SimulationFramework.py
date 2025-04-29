@@ -7,13 +7,14 @@ import matplotlib.pyplot as plt
 from fiora.MOL.Metabolite import Metabolite
 from fiora.MS.spectral_scores import *
 import fiora.visualization.spectrum_visualizer as sv
+from fiora.MOL.constants import DEFAULT_MODE_MAP
 
 class SimulationFramework:
     
     def __init__(self, base_model: torch.nn.Module|None=None, with_RT=False, with_CCS=False, dev: str="cpu"):
         self.base_model = base_model
         self.dev = dev
-        self.mode_mapper = None
+        self.mode_map = None
         self.with_RT = with_RT
         self.with_CCS = with_CCS
 
@@ -23,8 +24,8 @@ class SimulationFramework:
     def __str__(self):
         return f"Simulation framework for MS/MS spectrum generation"
 
-    def set_mode_mapper(self, mode_mapper):
-        self.mode_mapper = mode_mapper
+    def set_mode_mapper(self, mode_map):
+        self.mode_map = mode_map
 
     def predict_metabolite_property(self, metabolite, model: torch.nn.Module|None=None, as_batch: bool=False):
         if not model:
@@ -53,10 +54,10 @@ class SimulationFramework:
     
     def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity: float=0.001, merge_fragment_duplicates: bool=True, transform_prob: str="None"):
 
-        if not self.mode_mapper:
-            mode_mapper = metabolite.mode_mapper
+        if not self.mode_map:
+            mode_map = DEFAULT_MODE_MAP
         else:
-            mode_mapper = self.mode_mapper
+            mode_map = self.mode_map
     
         edge_map = metabolite.fragmentation_tree.edge_map
         
@@ -70,7 +71,7 @@ class SimulationFramework:
         sim_peaks["intensity"].append(precursor_prob)
         sim_peaks["annotation"].append(precursor.smiles + "//" + precursor_mode)
 
-        edge_probs = sim_probs[:-2].unflatten(-1, sizes=(-1, len(mode_mapper)*2))
+        edge_probs = sim_probs[:-2].unflatten(-1, sizes=(-1, len(mode_map)*2))
 
         for i, edge in enumerate(metabolite.edges_as_tuples):
             if edge[0] > edge[1]: continue # skip backward directions
@@ -79,7 +80,7 @@ class SimulationFramework:
             
             lf = frags.get('left')
             if lf:
-                for mode, idx in mode_mapper.items():
+                for mode, idx in mode_map.items():
                     intensity = edge_probs[i,idx].tolist()
                     if intensity > min_intensity:
                         mz =lf.mz[mode]
@@ -98,8 +99,8 @@ class SimulationFramework:
                         sim_peaks["annotation"].append(annotation)
             rf = frags.get('right')
             if rf:
-                for mode, idx in mode_mapper.items():
-                    idx = (idx + len(mode_mapper)) % (2*len(mode_mapper))
+                for mode, idx in mode_map.items():
+                    idx = (idx + len(mode_map)) % (2*len(mode_map))
                     intensity = edge_probs[i,idx].tolist()
 
                     if intensity > min_intensity:
