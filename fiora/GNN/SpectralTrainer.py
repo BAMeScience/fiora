@@ -138,7 +138,7 @@ class SpectralTrainer(Trainer):
                 
                 # Update checkpoint
                 if val_stats["mse"].tolist() < self.checkpoint_stats["val_loss"]:
-                    self._update_checkpoint({"epoch": e+1, "val_loss": val_stats["mse"].tolist()}, model)
+                    self._update_checkpoint({"epoch": e+1, "val_loss": val_stats["mse"].tolist(), "sqrt_val_loss": torch.sqrt(val_stats["mse"]).tolist()}, model)
                     print(f"\t >> Set new checkpoint to epoch {e+1}")
             
             # End of epoch: Advance scheduler

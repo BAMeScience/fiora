@@ -64,6 +64,7 @@ class Trainer(ABC):
         self.checkpoint_stats = {
             "epoch": -1,
             "val_loss": 100000.0,
+            "sqrt_val_loss": 100000.0,
             "file": save_path}
     
     def _update_checkpoint(self, new_checkpoint_data: Dict[str, Any], model, save_checkpoint: bool=True) -> None:
