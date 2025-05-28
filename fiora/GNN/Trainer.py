@@ -66,11 +66,28 @@ class Trainer(ABC):
             "val_loss": 100000.0,
             "sqrt_val_loss": 100000.0,
             "file": save_path}
-    
+
     def _update_checkpoint(self, new_checkpoint_data: Dict[str, Any], model, save_checkpoint: bool=True) -> None:
         self.checkpoint_stats.update(new_checkpoint_data)
         model.save(self.checkpoint_stats["file"])
+    
+    def _init_history(self) -> None:
+        self.history = {
+            "epoch": [],
+            "train_error": [],
+            "sqrt_train_error": [],
+            "val_error": [],
+            "sqrt_val_error": [],
+            "lr": []
+        }
 
+    def _update_history(self, epoch, train_stats, val_stats, lr) -> None:
+        self.history["epoch"].append(epoch)
+        self.history["train_error"].append(train_stats["mse"])
+        self.history["sqrt_train_error"].append(torch.sqrt(train_stats["mse"]).tolist())
+        self.history["val_error"].append(val_stats["mse"])
+        self.history["sqrt_val_error"].append(torch.sqrt(val_stats["mse"]).tolist())
+        self.history["lr"].append(lr)
     
     def is_group_in_training_set(self, group_id):
         return (group_id in self.train_keys)

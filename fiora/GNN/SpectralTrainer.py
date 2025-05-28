@@ -117,6 +117,7 @@ class SpectralTrainer(Trainer):
         
         # Set up checkpoint system and model info
         self._init_checkpoint_system(save_path=f"../../checkpoint_{tag}.best.pt")
+        self._init_history()
         model.model_params["training_label"] = self.y_tag
         
         # Stage data into dataloader
@@ -129,18 +130,13 @@ class SpectralTrainer(Trainer):
         for e in range(epochs):
             
             # Training
-            self._training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
+            train_stats = self._training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
             
             # Validation
             is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
             if is_val_cycle:   
                 val_stats = self._validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"] if use_validation_mask else self.metrics["val"], with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric, mask_name=mask_name if use_validation_mask else None, title="Masked Validation" if use_validation_mask else "Validation")
-                
-                # Update checkpoint
-                if val_stats["mse"].tolist() < self.checkpoint_stats["val_loss"]:
-                    self._update_checkpoint({"epoch": e+1, "val_loss": val_stats["mse"].tolist(), "sqrt_val_loss": torch.sqrt(val_stats["mse"]).tolist()}, model)
-                    print(f"\t >> Set new checkpoint to epoch {e+1}")
-            
+
             # End of epoch: Advance scheduler
             if scheduler:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
@@ -148,6 +144,15 @@ class SpectralTrainer(Trainer):
                         scheduler.step(torch.sqrt(val_stats["mse"]))
                 else:
                     scheduler.step()
+
+            # Save history
+            if is_val_cycle:            
+                # Update checkpoint
+                if val_stats["mse"].tolist() < self.checkpoint_stats["val_loss"]:
+                    self._update_checkpoint({"epoch": e+1, "val_loss": val_stats["mse"].tolist(), "sqrt_val_loss": torch.sqrt(val_stats["mse"]).tolist()}, model)
+                    print(f"\t >> Set new checkpoint to epoch {e+1}")   
+                self._update_history(e+1, train_stats, val_stats, lr=scheduler.get_last_lr()[0])
+
                     
         print("Finished Training!")
         return self.checkpoint_stats
