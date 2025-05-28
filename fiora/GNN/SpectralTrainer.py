@@ -140,10 +140,15 @@ class SpectralTrainer(Trainer):
             # End of epoch: Advance scheduler
             if scheduler:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    last_lr = scheduler.get_last_lr()[0]
                     if is_val_cycle:
                         scheduler.step(torch.sqrt(val_stats["mse"]))
+                        if scheduler.get_last_lr()[0] < last_lr:
+                            print(f"\t >> Learning rate reduced from {last_lr:1.0e} to {scheduler.get_last_lr()[0]:1.0e}")
                 else:
                     scheduler.step()
+
+            
 
             # Save history
             if is_val_cycle:            
