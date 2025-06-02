@@ -52,19 +52,25 @@ GeometricLayer = {
 
 
 class GNN(torch.nn.Module):
-    def __init__(self, hidden_features: int, depth: int, dense_depth: int=0, embedding_dim: int=None, embedding_aggregation_type: str='concat', gnn_type: str="GraphConv", input_dropout: float=0, latent_dropout: float=0) -> None:
+    def __init__(self, hidden_features: int, depth: int, embedding_dim: int=None, embedding_aggregation_type: str='concat', gnn_type: str="GraphConv", residual_connections: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
         super().__init__()
 
         self.activation = torch.nn.ELU()
         self.input_dropout = torch.nn.Dropout(input_dropout)
         self.latent_dropout = torch.nn.Dropout(latent_dropout)
         self.gnn_type = gnn_type
+        self.residual_connections = residual_connections
         node_features =  embedding_dim
         
         
         layers = []
         for _ in range(depth):
-            layers += [GeometricLayer[gnn_type]["Layer"](node_features, int(hidden_features / GeometricLayer[gnn_type]["const_args"]["heads"]) if GeometricLayer[gnn_type]["divide_output_dim"] else hidden_features, **GeometricLayer[gnn_type]["const_args"])]
+            layers += [
+                GeometricLayer[gnn_type]["Layer"](
+                    node_features, 
+                    int(hidden_features / GeometricLayer[gnn_type]["const_args"]["heads"]) 
+                    if GeometricLayer[gnn_type]["divide_output_dim"] 
+                    else hidden_features, **GeometricLayer[gnn_type]["const_args"])]
             node_features = hidden_features
 
         self.graph_layers = torch.nn.ModuleList(layers)
@@ -72,30 +78,34 @@ class GNN(torch.nn.Module):
 
     def forward(self, batch):
 
-
         #print(batch["edge_features"].shape)
         X = batch["node_embedding"]
         X = self.input_dropout(X)
-        
+
+
         # Apply graph layers
         batch_args = {key: batch[value] for key, value in GeometricLayer[self.gnn_type]["batch_args"].items()}
         for layer in self.graph_layers:
+            X_skip = X
             X = self.activation(layer(X, **batch_args))
             X = self.latent_dropout(X)
-            
+            if self.residual_connections:
+                X = X + X_skip
+
         return X
 
 
 
 class EdgePredictor(torch.nn.Module):
-    def __init__(self, edge_feature_dict, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, embedding_dim: int=200, embedding_aggregation_type: str='concat', input_dropout: float=0, latent_dropout: float=0) -> None:
+    def __init__(self, edge_feature_dict, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, embedding_dim: int=200, embedding_aggregation_type: str='concat', residual_connections: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
         super().__init__()
 
         self.activation = torch.nn.ELU()
         #self.edge_embedding = FeatureEmbedding(edge_feature_dict, embedding_dim, aggregation_type=embedding_aggregation_type)
         self.input_dropout = torch.nn.Dropout(input_dropout)
         self.latent_dropout = torch.nn.Dropout(latent_dropout)
-        
+        self.residual_connections = residual_connections
+
         dense_layers = []
         num_features = hidden_features*2 + embedding_dim + static_features
         for _ in range(dense_depth):
@@ -121,21 +131,25 @@ class EdgePredictor(torch.nn.Module):
         
         # Apply fully connected layers
         for layer in self.dense_layers:
+            X_skip = X
             X = self.activation(layer(X))
             X = self.latent_dropout(X)
-        
+            if self.residual_connections:
+                X = X + X_skip
+
         logits = self.output_layer(X)
         return logits
     
 
 class GraphPredictor(torch.nn.Module):
-    def __init__(self, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, input_dropout: float=0, latent_dropout: float=0) -> None:
+    def __init__(self, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, residual_connections: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
         super().__init__()
 
         self.activation = torch.nn.ELU()
         self.pooling_func = geom_nn.global_mean_pool
         self.input_dropout = torch.nn.Dropout(input_dropout)
         self.latent_dropout = torch.nn.Dropout(latent_dropout)
+        self.residual_connections = residual_connections
 
         dense_layers = []
         num_features = hidden_features + static_features
@@ -150,16 +164,15 @@ class GraphPredictor(torch.nn.Module):
         X = torch.cat([X, batch[covariate_tag]], axis=-1) # self.input_dropout(batch["static_graph_features"])
     
         for layer in self.dense_layers:
+            X_skip = X
             X = self.activation(layer(X))
             X = self.latent_dropout(X)
-
+            if self.residual_connections:
+                X = X + X_skip
                
         logits = self.output_layer(X)
         
         return logits
-    
-
-
 
 class GNNCompiler(torch.nn.Module):
     def __init__(self, model_params) -> None:
@@ -167,12 +180,12 @@ class GNNCompiler(torch.nn.Module):
         self.edge_dim = model_params["output_dimension"]
         self.node_embedding = FeatureEmbedding(model_params["node_feature_layout"], model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
         self.edge_embedding = FeatureEmbedding(model_params["edge_feature_layout"], model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
-        self.GNN_module = GNN(model_params["hidden_dimension"], model_params["depth"], model_params["dense_layers"], self.node_embedding.get_embedding_dimension(), model_params["embedding_aggregation"], model_params["gnn_type"], model_params["input_dropout"], model_params["latent_dropout"])
-        self.edge_module = EdgePredictor(model_params["edge_feature_layout"], model_params["hidden_dimension"], model_params["static_feature_dimension"], model_params["output_dimension"], model_params["dense_layers"], self.edge_embedding.get_embedding_dimension(), model_params["embedding_aggregation"], model_params["input_dropout"], model_params["latent_dropout"])
-        self.precursor_module = GraphPredictor(model_params["hidden_dimension"], model_params["static_feature_dimension"], 1, model_params["dense_layers"],  model_params["input_dropout"], model_params["latent_dropout"])
+        self.GNN_module = GNN(model_params["hidden_dimension"], model_params["depth"], self.node_embedding.get_embedding_dimension(), model_params["embedding_aggregation"], model_params["gnn_type"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
+        self.edge_module = EdgePredictor(model_params["edge_feature_layout"], model_params["hidden_dimension"], model_params["static_feature_dimension"], model_params["output_dimension"], model_params["dense_layers"], self.edge_embedding.get_embedding_dimension(), model_params["embedding_aggregation"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
+        self.precursor_module = GraphPredictor(model_params["hidden_dimension"], model_params["static_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
         
-        self.RT_module = GraphPredictor(model_params["hidden_dimension"], model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"],  model_params["input_dropout"], model_params["latent_dropout"])
-        self.CCS_module = GraphPredictor(model_params["hidden_dimension"], model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"],  model_params["input_dropout"], model_params["latent_dropout"])
+        self.RT_module = GraphPredictor(model_params["hidden_dimension"], model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
+        self.CCS_module = GraphPredictor(model_params["hidden_dimension"], model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
         
         self.set_transform("double_softmax")
         self.model_params = model_params
