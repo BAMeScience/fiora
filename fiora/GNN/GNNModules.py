@@ -177,6 +177,11 @@ class GraphPredictor(torch.nn.Module):
 class GNNCompiler(torch.nn.Module):
     def __init__(self, model_params) -> None:
         super().__init__()
+        
+        # catch older versions of the model_params
+        if "residual_connections" not in model_params:
+            model_params["residual_connections"] = False
+
         self.edge_dim = model_params["output_dimension"]
         self.node_embedding = FeatureEmbedding(model_params["node_feature_layout"], model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
         self.edge_embedding = FeatureEmbedding(model_params["edge_feature_layout"], model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
