@@ -47,7 +47,7 @@ Graph Neural Network (GNN) Class
 '''
 
 class GNN(torch.nn.Module):
-    def __init__(self, hidden_features: int, depth: int, embedding_dim: int=None, embedding_aggregation_type: str='concat', gnn_type: Literal["GraphConv", "GAT", "RGCNConv", "TransformerConv", "CGConv"]="RGCNConv", residual_connections: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
+    def __init__(self, hidden_features: int, depth: int, embedding_dim: int=None, embedding_aggregation_type: str='concat', gnn_type: Literal["GraphConv", "GAT", "RGCNConv", "TransformerConv", "CGConv"]="RGCNConv", residual_connections: bool=False, layer_stacking: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
         ''' Initialize the GNN model.
         Args:
             hidden_features (int): Number of hidden features for each layer.
@@ -59,7 +59,7 @@ class GNN(torch.nn.Module):
             input_dropout (float, optional): Dropout rate for input features. Defaults to 0.
             latent_dropout (float, optional): Dropout rate for latent features. Defaults to 0.
         '''
-        
+
         super().__init__()
 
         self.activation = torch.nn.ELU()
@@ -67,6 +67,7 @@ class GNN(torch.nn.Module):
         self.latent_dropout = torch.nn.Dropout(latent_dropout)
         self.gnn_type = gnn_type
         self.residual_connections = residual_connections
+        self.layer_stacking = layer_stacking
         node_features =  embedding_dim
         
         
@@ -84,10 +85,12 @@ class GNN(torch.nn.Module):
 
 
     def forward(self, batch):
-
+        # Initialize node embeddings
         X = batch["node_embedding"]
         X = self.input_dropout(X)
 
+        # If layer stacking is enabled, stack the node features
+        stacked_embeddings = [X] if self.layer_stacking else []
 
         # Apply graph layers
         batch_args = {key: batch[value] for key, value in GeometricLayer[self.gnn_type]["batch_args"].items()}
@@ -98,4 +101,13 @@ class GNN(torch.nn.Module):
             if self.residual_connections:
                 X = X + X_skip
 
+            if self.layer_stacking:
+                stacked_embeddings.append(X)
+
+        if self.layer_stacking:
+            X = torch.cat(stacked_embeddings, dim=-1)
         return X
+
+    def get_embedding_dimension(self):
+        """Get the output dimension of the GNN."""
+        return self.graph_layers[-1].out_channels * (len(self.graph_layers) + 1 if self.layer_stacking else 1)
