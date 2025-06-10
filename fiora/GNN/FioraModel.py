@@ -20,10 +20,8 @@ class FioraModel(torch.nn.Module):
                 model_params (Dict): Dictionary containing model parameters such as node/edge feature layouts, embedding dimensions, hidden dimensions, etc.
         '''
         super().__init__()
-
-        # catch older versions of the model_params
-        if "residual_connections" not in model_params:
-            model_params["residual_connections"] = False
+        
+        self._version_control_model_params(model_params)
 
         self.edge_dim = model_params["output_dimension"]
         self.node_embedding = FeatureEmbedding(model_params["node_feature_layout"], model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
@@ -38,6 +36,17 @@ class FioraModel(torch.nn.Module):
         self.set_transform("double_softmax")
         self.model_params = model_params
     
+    def _version_control_model_params(self, model_params: Dict) -> None:
+        ''' Update model parameters to match the latest model version.
+            Args:
+                model_params (Dict): Dictionary containing model parameters.
+        '''
+        if "residual_connections" not in model_params:
+            model_params["residual_connections"] = False
+
+        return
+
+
     def freeze_submodule(self, submodule_name: str):
         module = getattr(self, submodule_name)
         for param in module.parameters():
@@ -79,7 +88,7 @@ class FioraModel(torch.nn.Module):
         It combines edge/fragment prediction with precursor prediction for each individual graph/input and applies softmax. 
         Then, all output values are stacked in a single dimension.
     '''
-    def compile_output(self, edge_values, graph_values, batch) -> torch.tensor:
+    def _compile_output(self, edge_values, graph_values, batch) -> torch.tensor:
         output = torch.zeros(edge_values.shape[0] * edge_values.shape[1] + graph_values.shape[0] * 2, device=edge_values.device)
         batch_ptr = 0
         
@@ -111,7 +120,7 @@ class FioraModel(torch.nn.Module):
         
         edge_values = self.edge_module(X, batch)
         graph_values = self.precursor_module(X, batch)
-        fragment_probs = self.compile_output(edge_values, graph_values, batch)        
+        fragment_probs = self._compile_output(edge_values, graph_values, batch)        
         
         output = {'fragment_probs': fragment_probs}
         
