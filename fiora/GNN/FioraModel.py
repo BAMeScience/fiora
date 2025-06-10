@@ -8,13 +8,17 @@ from fiora.GNN.GraphPropertyPredictor import GraphPropertyPredictor
 from fiora.GNN.EdgePropertyPredictor import EdgePropertyPredictor
 
 # Misc
-from typing import Literal
+from typing import Literal, Dict
 import dill
 import json
 
 
-class GNNCompiler(torch.nn.Module):
-    def __init__(self, model_params) -> None:
+class FioraModel(torch.nn.Module):
+    def __init__(self, model_params: Dict) -> None:
+        ''' Initialize the FioraModel with the given parameters.
+            Args:
+                model_params (Dict): Dictionary containing model parameters such as node/edge feature layouts, embedding dimensions, hidden dimensions, etc.
+        '''
         super().__init__()
 
         # catch older versions of the model_params
@@ -122,7 +126,7 @@ class GNNCompiler(torch.nn.Module):
         return output
          
     @classmethod
-    def load(cls, PATH: str) -> 'GNNCompiler':
+    def load(cls, PATH: str) -> 'FioraModel':
         
         with open(PATH, 'rb') as f:
             model = dill.load(f)
@@ -133,14 +137,14 @@ class GNNCompiler(torch.nn.Module):
         return model
     
     @classmethod
-    def load_from_state_dict(cls, PATH: str) -> 'GNNCompiler':
+    def load_from_state_dict(cls, PATH: str) -> 'FioraModel':
 
         PARAMS_PATH = PATH.replace(".pt", "_params.json")
         STATE_PATH = PATH.replace(".pt", "_state.pt")
         
         with open(PARAMS_PATH, 'r') as fp:
             params = json.load(fp)
-        model = GNNCompiler(params)
+        model = FioraModel(params)
         model.load_state_dict(torch.load(STATE_PATH, map_location=torch.serialization.default_restore_location, weights_only=True))
 
         if not isinstance(model, cls):
