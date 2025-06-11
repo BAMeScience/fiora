@@ -27,6 +27,8 @@ class GraphPropertyPredictor(torch.nn.Module):
         dense_layers = []
         num_features = hidden_features + static_features
         hidden_dimension = dense_dim if dense_dim is not None else num_features
+        if hidden_dimension != num_features and residual_connections:
+            raise NotImplementedError("Residual connections require the hidden dimension to match the input dimension.")
         for _ in range(dense_depth):
             dense_layers += [torch.nn.Linear(num_features, hidden_dimension)]
             num_features = hidden_dimension

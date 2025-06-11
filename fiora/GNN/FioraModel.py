@@ -51,7 +51,7 @@ class FioraModel(torch.nn.Module):
         if "prepare_additional_layers" not in model_params:
             model_params["prepare_additional_layers"] = True # Defaults to True, since old models have RT/CCS modules
         if "dense_dim" not in model_params:
-            model_params["dense_dim"] = None
+            model_params["dense_dim"] = None # None defaults to the number of input features (GNN output dimension)
 
         return
 
