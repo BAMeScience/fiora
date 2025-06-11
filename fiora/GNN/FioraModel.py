@@ -30,8 +30,9 @@ class FioraModel(torch.nn.Module):
         self.edge_module = EdgePropertyPredictor(model_params["edge_feature_layout"], self.GNN_module.get_embedding_dimension(), model_params["static_feature_dimension"], model_params["output_dimension"], model_params["dense_layers"], self.edge_embedding.get_embedding_dimension(), model_params["embedding_aggregation"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
         self.precursor_module = GraphPropertyPredictor(self.GNN_module.get_embedding_dimension(), model_params["static_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
         
-        self.RT_module = GraphPropertyPredictor(self.GNN_module.get_embedding_dimension(), model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
-        self.CCS_module = GraphPropertyPredictor(self.GNN_module.get_embedding_dimension(), model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
+        if model_params["prepare_additional_layers"]:
+            self.RT_module = GraphPropertyPredictor(self.GNN_module.get_embedding_dimension(), model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
+            self.CCS_module = GraphPropertyPredictor(self.GNN_module.get_embedding_dimension(), model_params["static_rt_feature_dimension"], 1, model_params["dense_layers"], model_params["residual_connections"], model_params["input_dropout"], model_params["latent_dropout"])
         
         self.set_transform("double_softmax")
         self.model_params = model_params
@@ -45,6 +46,8 @@ class FioraModel(torch.nn.Module):
             model_params["residual_connections"] = False
         if "layer_stacking" not in model_params:
             model_params["layer_stacking"] = False
+        if "prepare_additional_layers" not in model_params:
+            model_params["prepare_additional_layers"] = True # Defaults to True, since old models have RT/CCS modules
 
         return
 

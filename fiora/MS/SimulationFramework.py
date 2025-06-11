@@ -11,12 +11,10 @@ from fiora.MOL.constants import DEFAULT_MODE_MAP
 
 class SimulationFramework:
     
-    def __init__(self, base_model: torch.nn.Module|None=None, with_RT=False, with_CCS=False, dev: str="cpu"):
+    def __init__(self, base_model: torch.nn.Module|None=None, dev: str="cpu"):
         self.base_model = base_model
         self.dev = dev
         self.mode_map = None
-        self.with_RT = with_RT
-        self.with_CCS = with_CCS
 
     def __repr__(self):
         return f"Simulation framework for MS/MS spectrum generation"
@@ -34,7 +32,7 @@ class SimulationFramework:
         if as_batch:
             data = geom.data.Batch.from_data_list([data])
         
-        logits = model(data, with_RT=self.with_RT, with_CCS=self.with_CCS)
+        logits = model(data, with_RT=hasattr(model, "rt_module"), with_CCS=hasattr(model, "ccs_module"))
         return logits
     
     def pred_all(self, df: pd.DataFrame, model: torch.nn.Module|None=None, attr_name: str="", as_batch: bool=True):
@@ -44,7 +42,7 @@ class SimulationFramework:
             for i,d in df.iterrows():
                 metabolite = d["Metabolite"]
                 prediction = self.predict_metabolite_property(metabolite, model=model, as_batch=as_batch)
-                if self.with_RT:
+                if hasattr(model, "rt_module"):
                     setattr(metabolite, attr_name + "_pred", prediction["fragment_probs"])
                     setattr(metabolite, "RT_pred", prediction["rt"].squeeze())
                 else:
@@ -132,9 +130,9 @@ class SimulationFramework:
         prediction = self.predict_metabolite_property(metabolite, model=model, as_batch=as_batch)
         stats = {}
 
-        if self.with_RT:
+        if "rt" in prediction.keys():
             stats["RT_pred"] = prediction["rt"].squeeze().tolist()
-        if self.with_CCS:
+        if "ccs" in prediction.keys():
             stats["CCS_pred"] = prediction["ccs"].squeeze().tolist()
             
         setattr(metabolite, base_attr_name + "_pred", prediction["fragment_probs"])
@@ -149,7 +147,7 @@ class SimulationFramework:
             stats["cosine_similarity"] = torch.nn.functional.cosine_similarity(prediction["fragment_probs"], groundtruth, dim=0).tolist() # TODO
             stats["kl_div"] = torch.nn.functional.kl_div(torch.log(prediction["fragment_probs"]), groundtruth, reduction='sum').tolist()
             
-        if self.with_RT and "retention_time" in metabolite.metadata.keys():
+        if "RT_pred" in stats.keys() and "retention_time" in metabolite.metadata.keys():
             stats["RT_dif"] = abs(stats["RT_pred"] - metabolite.metadata["retention_time"])
         
         if query_peaks:
