@@ -72,6 +72,7 @@ class GNN(torch.nn.Module):
         
         
         layers = []
+        self.layer_norms = torch.nn.ModuleList()
         for _ in range(depth):
             layers += [
                 GeometricLayer[gnn_type]["Layer"](
@@ -79,6 +80,7 @@ class GNN(torch.nn.Module):
                     int(hidden_features / GeometricLayer[gnn_type]["const_args"]["heads"]) 
                     if GeometricLayer[gnn_type]["divide_output_dim"] 
                     else hidden_features, **GeometricLayer[gnn_type]["const_args"])]
+            self.layer_norms.append(torch.nn.LayerNorm(hidden_features))
             node_features = hidden_features
 
         self.graph_layers = torch.nn.ModuleList(layers)
@@ -94,9 +96,11 @@ class GNN(torch.nn.Module):
 
         # Apply graph layers
         batch_args = {key: batch[value] for key, value in GeometricLayer[self.gnn_type]["batch_args"].items()}
-        for layer in self.graph_layers:
+        for i, layer in enumerate(self.graph_layers):
             X_skip = X
-            X = self.activation(layer(X, **batch_args))
+            X = layer(X, **batch_args)
+            X = self.layer_norms[i](X)
+            X = self.activation(X)
             X = self.latent_dropout(X)
             if self.residual_connections:
                 X = X + X_skip
