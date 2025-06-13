@@ -45,5 +45,7 @@ DEFAULT_MODES = ["[M+H]+", "[M]+", "[M-H]+", "[M-2H]+", "[M-3H]+"] #"[M-4H]+"] #
 DEFAULT_MODE_MAP = {mode: i for i, mode in enumerate(DEFAULT_MODES)}
 #NEGATIVE_MODES = ["[M]-", "[M-H]-", "[M-2H]-", "[M-3H]-", "[M-4H]-"]
 
-
 # source: https://fiehnlab.ucdavis.edu/staff/kind/metabolomics/ms-adduct-calculator
+
+
+ORDERED_ELEMENT_LIST = ['Br', 'C', 'Cl', 'F', 'I', 'N', 'O', 'P', 'S'] # Warning: Changes may affect model and version control 

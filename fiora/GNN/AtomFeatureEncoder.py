@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from rdkit import Chem
 from typing import Literal
+from fiora.MOL.constants import ORDERED_ELEMENT_LIST
 
 
 
@@ -10,7 +11,7 @@ class AtomFeatureEncoder:
     def __init__(self, feature_list=["symbol", "num_hydrogen", "ring_type"]):
         self.encoding_dim = 0
         self.sets = {
-            "symbol": ['Br', 'C', 'Cl', 'F', 'I', 'N', 'O', 'P', 'S'], #OTHERS: Au, Se, Si  #standard list {"B", "Br", "C", "Ca", "Cl", "F", "H", "I", "N", "Na", "O", "P", "S"},
+            "symbol": ORDERED_ELEMENT_LIST, #OTHERS: Au, Se, Si  #standard list {"B", "Br", "C", "Ca", "Cl", "F", "H", "I", "N", "Na", "O", "P", "S"},
             "num_hydrogen": [0, 1, 2, 3], #OTHERS: 5, 6, 7, 8},
             "ring_type": ["no-ring", "small-ring", "5-cycle", "6-cycle", "large-ring"],
             "hybridization": ["SP", "SP2", "SP3", "SP3D2"],
