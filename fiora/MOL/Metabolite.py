@@ -158,27 +158,27 @@ class Metabolite:
         else:
             self.bond_features = torch.zeros(len(self.edges_as_tuples), 0, dtype=torch.float32)
 
-    def add_metadata(self, metadata, setup_encoder: CovariateFeatureEncoder=None, rt_feature_encoder: CovariateFeatureEncoder=None, process_metadata: bool = True, max_RT=30.0):
+    def add_metadata(self, metadata, covariate_encoder: CovariateFeatureEncoder=None, rt_feature_encoder: CovariateFeatureEncoder=None, process_metadata: bool = True, max_RT=30.0):
         self.metadata = metadata
         mol_metadata = {"molecular_weight": self.ExactMolWeight}
         metadata.update(mol_metadata)
         if not process_metadata:
             return
         
-        if setup_encoder:
-            self.setup_features = setup_encoder.encode(1, metadata)
-            self.setup_features_per_edge = setup_encoder.encode(len(self.edges_as_tuples), metadata)
+        if covariate_encoder:
+            self.setup_features = covariate_encoder.encode(1, metadata, G=self.Graph)
+            self.setup_features_per_edge = covariate_encoder.encode(len(self.edges_as_tuples), metadata, G=self.Graph)
             if "ce_steps" in metadata:
-                self.ce_steps = torch.tensor([setup_encoder.normalize_collision_steps(metadata["ce_steps"]) + [np.nan for _ in range(7 - len(metadata["ce_steps"]))]]) # nan padding
+                self.ce_steps = torch.tensor([covariate_encoder.normalize_collision_steps(metadata["ce_steps"]) + [np.nan for _ in range(7 - len(metadata["ce_steps"]))]]) # nan padding
             else:
                 self.ce_steps = torch.tensor([np.nan] * 7, dtype=torch.float).unsqueeze(0)
-            self.ce_idx = torch.tensor(setup_encoder.one_hot_mapper["collision_energy"], dtype=int).unsqueeze(dim=-1)
+            self.ce_idx = torch.tensor(covariate_encoder.one_hot_mapper["collision_energy"], dtype=int).unsqueeze(dim=-1)
         else:
             self.setup_features = torch.zeros(1, 0, dtype=torch.float32)
             self.setup_features_per_edge = torch.zeros(len(self.edges_as_tuples), 0, dtype=torch.float32)
         
         if rt_feature_encoder:
-            self.rt_setup_features = rt_feature_encoder.encode(1, metadata)
+            self.rt_setup_features = rt_feature_encoder.encode(1, metadata, G=self.Graph)
         
         if "retention_time" in metadata.keys():
             if not metadata["retention_time"] or np.isnan(metadata["retention_time"]) or "GC" in str(metadata["instrument"]) or metadata["retention_time"] > max_RT:
