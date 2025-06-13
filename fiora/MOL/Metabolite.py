@@ -17,7 +17,7 @@ from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_m
 from fiora.MOL.FragmentationTree import FragmentationTree 
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
 from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
-from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
+from fiora.GNN.CovariateFeatureEncoder import CovariateFeatureEncoder
 
 
 class Metabolite:
@@ -158,7 +158,7 @@ class Metabolite:
         else:
             self.bond_features = torch.zeros(len(self.edges_as_tuples), 0, dtype=torch.float32)
 
-    def add_metadata(self, metadata, setup_encoder: SetupFeatureEncoder=None, rt_feature_encoder: SetupFeatureEncoder=None, process_metadata: bool = True, max_RT=30.0):
+    def add_metadata(self, metadata, setup_encoder: CovariateFeatureEncoder=None, rt_feature_encoder: CovariateFeatureEncoder=None, process_metadata: bool = True, max_RT=30.0):
         self.metadata = metadata
         mol_metadata = {"molecular_weight": self.ExactMolWeight}
         metadata.update(mol_metadata)

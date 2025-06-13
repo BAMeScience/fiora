@@ -11,7 +11,7 @@ class BondFeatureEncoder:
         self.sets = {
             "bond_type": ["AROMATIC", "SINGLE", "DOUBLE", "TRIPLE"],
             "ring_type": ["no-ring", "small-ring", "5-cycle", "6-cycle", "large-ring"],
-            "ring_type_binary": ["is_in_ring"]
+            "ring_type_binary": ["is_in_ring"],       
         }
         self.reduced_features = [] # Reduced features may have additional values that will be encoded with another bit (representing OTHERS)
         self.one_hot_mapper = {}

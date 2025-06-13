@@ -2,7 +2,7 @@
 import torch 
 import numpy as np
 
-class SetupFeatureEncoder:
+class CovariateFeatureEncoder:
     def __init__(self, feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite: dict|None=None):
         if "ce_steps" in feature_list:
             raise ValueError("'ce_steps' is not meant as a setup feature. Remove from feature_list")
@@ -62,3 +62,5 @@ class SetupFeatureEncoder:
         norm_ce = lambda x: (x - self.normalize_features["collision_energy"]["min"]) / (self.normalize_features["collision_energy"]["max"] - self.normalize_features["collision_energy"]["min"]) 
         ce_steps = [norm_ce(x) for x in ce_steps]
         return ce_steps
+    
+    
