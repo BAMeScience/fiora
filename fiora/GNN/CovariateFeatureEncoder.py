@@ -1,7 +1,7 @@
 
 import torch 
 import numpy as np
-from fiora.MOL.constants import ORDERED_ELEMENT_LIST
+from fiora.MOL.constants import ORDERED_ELEMENT_LIST_WITH_HYDROGEN
 
 class CovariateFeatureEncoder:
     def __init__(self, feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument", "element_composition"], sets_overwrite: dict|None=None):
@@ -41,9 +41,9 @@ class CovariateFeatureEncoder:
         
         if "element_composition" in self.feature_list:
             self.one_hot_mapper["element_composition"] = {
-                element: idx for idx, element in enumerate(ORDERED_ELEMENT_LIST, start=self.encoding_dim)
+                element: idx for idx, element in enumerate(ORDERED_ELEMENT_LIST_WITH_HYDROGEN, start=self.encoding_dim)
             }  # Note that element composition is using int numbers and not one hot mapping. But the index is still correct.
-            self.encoding_dim += len(ORDERED_ELEMENT_LIST)
+            self.encoding_dim += len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN)
     
     def encode(self, dim0, metadata, G=None):
         feature_matrix = torch.zeros(dim0, self.encoding_dim, dtype=torch.float32)
@@ -66,7 +66,7 @@ class CovariateFeatureEncoder:
                 if G is None:
                     raise ValueError("Graph G must be provided to encode 'element_composition'")
                 element_composition = self.get_element_composition(G)
-                for idx, element in enumerate(ORDERED_ELEMENT_LIST):
+                for idx, element in enumerate(ORDERED_ELEMENT_LIST_WITH_HYDROGEN):
                     feature_matrix[:, self.one_hot_mapper["element_composition"][element]] = element_composition[idx]
         return feature_matrix
     
@@ -78,19 +78,19 @@ class CovariateFeatureEncoder:
 
     def get_element_composition(self, G):
         # Initialize composition vector with zeros
-        element_composition = torch.zeros(len(ORDERED_ELEMENT_LIST), dtype=torch.float32)
+        element_composition = torch.zeros(len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
 
         # Iterate through nodes in the graph
         for node in G.nodes:
             atom = G.nodes[node]['atom']
             symbol = atom.GetSymbol()  # Get the atomic symbol
-            if symbol in ORDERED_ELEMENT_LIST:
-                index = ORDERED_ELEMENT_LIST.index(symbol)  # Find the index of the element
+            if symbol in ORDERED_ELEMENT_LIST_WITH_HYDROGEN:
+                index = ORDERED_ELEMENT_LIST_WITH_HYDROGEN.index(symbol)  # Find the index of the element
                 element_composition[index] += 1  # Increment the count for the element
 
             # Add hydrogens explicitly
             hydrogens = atom.GetTotalNumHs()
-            hydrogen_index = ORDERED_ELEMENT_LIST.index('H')  # Ensure 'H' is in ORDERED_ELEMENT_LIST
+            hydrogen_index = ORDERED_ELEMENT_LIST_WITH_HYDROGEN.index('H')  # Ensure 'H' is in ORDERED_ELEMENT_LIST
             element_composition[hydrogen_index] += hydrogens
 
         return element_composition

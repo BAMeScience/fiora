@@ -49,3 +49,4 @@ DEFAULT_MODE_MAP = {mode: i for i, mode in enumerate(DEFAULT_MODES)}
 
 
 ORDERED_ELEMENT_LIST = ['Br', 'C', 'Cl', 'F', 'I', 'N', 'O', 'P', 'S'] # Warning: Changes may affect model and version control 
+ORDERED_ELEMENT_LIST_WITH_HYDROGEN = ORDERED_ELEMENT_LIST + ['H']  # Hydrogen is added at the end for element composition encoding
