@@ -9,6 +9,8 @@ from rdkit.Chem import Draw
 from rdkit.Chem import Descriptors
 from rdkit.Chem import rdMolDescriptors
 from rdkit import DataStructs
+from rdkit.Chem.Draw import rdMolDraw2D
+from IPython.display import SVG, display
 from torch_geometric.data import Data
 from typing import Literal
 
@@ -98,18 +100,30 @@ class Metabolite:
         if finger == "morgan3":
             return DataStructs.TanimotoSimilarity(self.morganFinger3, __o.morganFinger3)
         raise ValueError(f"Unknown type of fingerprint: {finger}. Cannot compare Metabolites.")
-    
-    # draw
-    def draw(self, ax=plt, show: bool=False):
-        img = Draw.MolToImage(self.MOL, ax=ax)
-    
-        ax.grid(False)
-        ax.tick_params(axis='both', bottom=False, labelbottom=False, left=False, labelleft=False)
-        ax.imshow(img)
-        ax.axis("off")
-        if show:
-            plt.show()
-        return img
+
+    def draw(self, ax=plt, show: bool=False, high_res: bool=False):
+        if high_res:
+            # Generate high-resolution SVG
+            drawer = rdMolDraw2D.MolDraw2DSVG(500, 500)
+            drawer.DrawMolecule(self.MOL)
+            drawer.FinishDrawing()
+            img = SVG(drawer.GetDrawingText()) 
+            
+            # Display the SVG inline in the notebook
+            if show:
+                display(img)
+            return img
+        else:
+            # Generate low-resolution image
+            img = Draw.MolToImage(self.MOL, ax=ax)
+            ax.grid(False)
+            ax.tick_params(axis='both', bottom=False, labelbottom=False, left=False, labelleft=False)
+            ax.imshow(img)
+            ax.axis("off")
+            if show:
+                plt.show()
+            return img
+
 
 
     # class-specific functions
@@ -145,14 +159,14 @@ class Metabolite:
         if not memory_safe:
             self.atoms_in_order = [self.Graph.nodes[atom]['atom'] for atom in self.Graph.nodes()]
             self.node_elements = [self.Graph.nodes[atom]['atom'].GetSymbol() for atom in self.Graph.nodes()]
-            edge_bond_names = [self.Graph[u][v]['bond_type'].name for u,v in self.edges_as_tuples]
+            self.edge_bond_names = [self.Graph[u][v]['bond_type'].name for u,v in self.edges_as_tuples]
         
         # Features
         if node_encoder:
             self.node_features = node_encoder.encode(self.Graph, encoder_type="number")
             self.node_features_one_hot = node_encoder.encode(self.Graph, encoder_type="one_hot")
         if bond_encoder:
-            self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in edge_bond_names], dtype=torch.int64)
+            self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in self.edge_bond_names], dtype=torch.int64)
             self.bond_features = bond_encoder.encode(self.Graph, self.edges_as_tuples, encoder_type="number")
             self.bond_features_one_hot = bond_encoder.encode(self.Graph, self.edges_as_tuples, encoder_type="one_hot")
         else:
