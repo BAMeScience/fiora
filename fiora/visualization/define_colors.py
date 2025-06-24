@@ -49,6 +49,20 @@ PRINT_COL = {
     "end": "\033[00m" 
 }
 
+ELEMENT_COLORS = {
+    "C": "#909090",  # Carbon (gray)
+    "O": "#FF0D0D",  # Oxygen (red)
+    "N": "#3050F8",  # Nitrogen (blue)
+    "F": "#98E8F8",  # Fluorine (light blue)
+    "Cl": "#00FF00",  # Chlorine (green)
+    "Br": "#A62929",  # Bromine (dark red)
+    "I": "#940094",  # Iodine (purple)
+    "P": "#FF8000",  # Phosphorus (orange)
+    "S": "#FFFF30",  # Sulfur (yellow)
+    "Si": "#D1D1E0",  # Silicon (light gray)
+    "ANY_RARE": "#FFFFFF",  # White for any rare elements
+}
+
 lightblue = (46, 64, 85)
 lightblue_hex = "#75a3d9"
 lightpink = (81, 55, 52)
@@ -190,3 +204,5 @@ def adjust_bar_widths(ax, fac):
         new_width = fac * bar_width
         bar.set_width(new_width)
         bar.set_x(bar_center - new_width / 2)
+
+
