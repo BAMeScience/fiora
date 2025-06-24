@@ -30,7 +30,7 @@ GeometricLayer = {
     "TransformerConv": {
         "Layer": geom_nn.TransformerConv,
         "divide_output_dim": True,
-        "const_args": {'heads': 5, 'edge_dim': 300},
+        "const_args": {'heads': 8, 'edge_dim': 300},
         "batch_args": {'edge_index': 'edge_index', 'edge_attr': 'edge_embedding'}
     },
     
