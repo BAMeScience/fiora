@@ -32,6 +32,16 @@ ADDUCT_WEIGHTS = {
     "[M]-": 0, # could be one electron too many 
     "[M-2H]-": -1 * Descriptors.ExactMolWt(h_2),
     "[M-3H]-": -1 * Descriptors.ExactMolWt(h_2) - 1 * Chem.Descriptors.ExactMolWt(h_plus),    
+    
+    #
+    # Hydrogen gains
+    #
+    
+    "[M+2H]+": Descriptors.ExactMolWt(h_plus) + 1 * Descriptors.ExactMolWt(Chem.MolFromSmiles("[H]")),  # 1 proton + 1 neutral hydrogens
+    "[M+3H]+": Descriptors.ExactMolWt(h_plus) + 2 * Descriptors.ExactMolWt(Chem.MolFromSmiles("[H]")),  # 1 proton + 2 neutral hydrogens
+    "[M+2H]-": Descriptors.ExactMolWt(h_plus) + 1 * Descriptors.ExactMolWt(Chem.MolFromSmiles("[H]")),  # 1 proton + 2 neutral hydrogens
+    "[M+3H]-": Descriptors.ExactMolWt(h_plus) + 2 * Descriptors.ExactMolWt(Chem.MolFromSmiles("[H]")),  # 1 proton + 2 neutral hydrogens
+    
     }
 
 
