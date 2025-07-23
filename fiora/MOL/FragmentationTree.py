@@ -28,7 +28,7 @@ class Fragment:
             self.subgraphs = [subgraph]
         else:
             self.break_sides = [None]
-            self.subgraph = []
+            self.subgraphs = []
         if isotope_labels: # Reset isotope info
             for a in mol.GetAtoms():
                 id = a.GetIsotope()

@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import warnings
 import matplotlib.pyplot as plt
+from typing import Literal
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Draw
@@ -12,9 +13,10 @@ from rdkit import DataStructs
 from rdkit.Chem.Draw import rdMolDraw2D
 from IPython.display import SVG, display
 from torch_geometric.data import Data
-from typing import Literal
+import networkx as nx
 
-from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, DEFAULT_MODE_MAP, ADDUCT_WEIGHTS
+
+from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, DEFAULT_MODE_MAP, ADDUCT_WEIGHTS, ORDERED_ELEMENT_LIST_WITH_HYDROGEN
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
 from fiora.MOL.FragmentationTree import FragmentationTree 
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
@@ -128,7 +130,7 @@ class Metabolite:
 
     # class-specific functions
     def create_molecular_structure_graph(self):
-        self.Graph = mol_to_graph(self.MOL)
+        self.Graph: nx.Graph = mol_to_graph(self.MOL)
     
     
     def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None, memory_safe: bool = False) -> None:
@@ -227,9 +229,41 @@ class Metabolite:
     def fragment_MOL(self, depth=1):
         self.fragmentation_tree = FragmentationTree(self.MOL)
         self.fragmentation_tree.build_fragmentation_tree(self.MOL, self.edges_as_tuples, depth=depth)
+        self.extract_subgraph_features_from_edges()
     
     def add_fragmentation_tree(self, fragmentation_tree: FragmentationTree):
         self.fragmentation_tree = fragmentation_tree
+        self.extract_subgraph_features_from_edges()
+
+    def extract_subgraph_features_from_edges(self) -> None:
+        if self.fragmentation_tree is None:
+            raise ValueError("Fragmentation tree is not set. Please fragment the molecule first.")
+        self.subgraph_elem_comp = torch.zeros(len(self.edges_as_tuples), 2*len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+        for i, edge in enumerate(self.edges):
+            (u, v) = tuple(edge.tolist())
+            edge_map = self.fragmentation_tree.edge_map
+            left_fragment, right_fragment = None, None
+            # Extract subgraphs from fragmentation tree (via edge_map)
+            if u < v:
+                if (u, v) in edge_map:
+                    frag_list = edge_map[(u, v)]
+                    if frag_list != {}:
+                        left_fragment = frag_list["left"]
+                        right_fragment = frag_list["right"]
+            else:
+                if (v, u) in edge_map:
+                    frag_list = edge_map[(v, u)]
+                    if frag_list != {}:
+                        left_fragment = frag_list["right"]
+                        right_fragment = frag_list["left"]
+            
+            # Set fragment 
+            edge_elem_comp = torch.zeros(2*len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+            if left_fragment is not None and right_fragment is not None:
+                edge_elem_comp[:len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN)] = CovariateFeatureEncoder.get_element_composition(self.Graph.subgraph(left_fragment.subgraphs[0])).clone().detach().to(torch.float32)
+                edge_elem_comp[len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN):] = CovariateFeatureEncoder.get_element_composition(self.Graph.subgraph(right_fragment.subgraphs[0])).clone().detach().to(torch.float32)
+            
+            self.subgraph_elem_comp[i, :] = edge_elem_comp
 
     def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_map_override=None, tolerance=DEFAULT_PPM, match_stats_only: bool = False):
         self.peak_matches = self.fragmentation_tree.match_peak_list(mz_fragments, int_list, tolerance=tolerance)
@@ -276,9 +310,8 @@ class Metabolite:
             self.edge_count_matrix[forward_idx, col] = values['intensity']
             col = (col + len(mode_map)) % (2*len(mode_map)) #to the other side of the break
             self.edge_count_matrix[backward_idx, col] = values['intensity']
-        
     
-        "bond_features_one_hot",
+        #"bond_features_one_hot",
         # Compile probability vectors  
         # self.compiled_counts = torch.cat([self.edge_break_count.flatten(), self.precursor_count.unsqueeze(dim=-1), self.precursor_count.unsqueeze(dim=-1)])
         # self.compiled_probs = 2 * self.compiled_counts / torch.sum(self.compiled_counts)
@@ -354,6 +387,7 @@ class Metabolite:
                 edge_index=self.edges.t().contiguous(),
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
+                edge_elem_comp = self.subgraph_elem_comp,
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,
@@ -399,6 +433,7 @@ class Metabolite:
                 edge_index=self.edges.t().contiguous(),
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
+                edge_elem_comp = self.subgraph_elem_comp,
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,

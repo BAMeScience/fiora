@@ -75,8 +75,8 @@ class CovariateFeatureEncoder:
         ce_steps = [norm_ce(x) for x in ce_steps]
         return ce_steps
     
-
-    def get_element_composition(self, G):
+    @staticmethod
+    def get_element_composition(G):
         # Initialize composition vector with zeros
         element_composition = torch.zeros(len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
 

@@ -27,7 +27,7 @@ class FioraModel(torch.nn.Module):
         self.node_embedding = FeatureEmbedding(feature_dict=model_params["node_feature_layout"], dim=model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
         self.edge_embedding = FeatureEmbedding(feature_dict=model_params["edge_feature_layout"], dim=model_params["embedding_dimension"], aggregation_type=model_params["embedding_aggregation"])
         self.GNN_module = GNN(hidden_features=model_params["hidden_dimension"], depth=model_params["depth"], embedding_dim=self.node_embedding.get_embedding_dimension(), embedding_aggregation_type=model_params["embedding_aggregation"], gnn_type=model_params["gnn_type"], residual_connections=model_params["residual_connections"], layer_stacking=model_params["layer_stacking"], input_dropout=model_params["input_dropout"], latent_dropout=model_params["latent_dropout"])
-        self.edge_module = EdgePropertyPredictor(edge_feature_dict=model_params["edge_feature_layout"], hidden_features=self.GNN_module.get_embedding_dimension(), static_features=model_params["static_feature_dimension"], out_dimension=model_params["output_dimension"], dense_depth=model_params["dense_layers"], dense_dim=model_params["dense_dim"], embedding_dim=self.edge_embedding.get_embedding_dimension(), embedding_aggregation_type=model_params["embedding_aggregation"], residual_connections=model_params["residual_connections"], input_dropout=model_params["input_dropout"], latent_dropout=model_params["latent_dropout"])
+        self.edge_module = EdgePropertyPredictor(edge_feature_dict=model_params["edge_feature_layout"], hidden_features=self.GNN_module.get_embedding_dimension(), static_features=model_params["static_feature_dimension"], out_dimension=model_params["output_dimension"], dense_depth=model_params["dense_layers"], dense_dim=model_params["dense_dim"], embedding_dim=self.edge_embedding.get_embedding_dimension(), embedding_aggregation_type=model_params["embedding_aggregation"], residual_connections=model_params["residual_connections"], subgraph_features=model_params["subgraph_features"], input_dropout=model_params["input_dropout"], latent_dropout=model_params["latent_dropout"])
         self.precursor_module = GraphPropertyPredictor(hidden_features=self.GNN_module.get_embedding_dimension(), static_features=model_params["static_feature_dimension"], out_dimension=1, dense_depth=model_params["dense_layers"], dense_dim=model_params["dense_dim"], residual_connections=model_params["residual_connections"], input_dropout=model_params["input_dropout"], latent_dropout=model_params["latent_dropout"])
         
         if model_params["prepare_additional_layers"]:
@@ -52,6 +52,8 @@ class FioraModel(torch.nn.Module):
             model_params["prepare_additional_layers"] = True # Defaults to True, since old models have RT/CCS modules
         if "dense_dim" not in model_params:
             model_params["dense_dim"] = None # None defaults to the number of input features (GNN output dimension)
+        if "subgraph_features" not in model_params: # No subgraph features in older models
+            model_params["subgraph_features"] = False
 
         return
 
@@ -142,7 +144,7 @@ class FioraModel(torch.nn.Module):
             output["ccs"] = ccs_values
 
         return output
-         
+        
     @classmethod
     def load(cls, PATH: str) -> 'FioraModel':
         
