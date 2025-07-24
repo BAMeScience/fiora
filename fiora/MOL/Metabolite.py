@@ -238,11 +238,16 @@ class Metabolite:
     def extract_subgraph_features_from_edges(self) -> None:
         if self.fragmentation_tree is None:
             raise ValueError("Fragmentation tree is not set. Please fragment the molecule first.")
-        self.subgraph_elem_comp = torch.zeros(len(self.edges_as_tuples), 2*len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+        
+        # Initialize tensors for element composition and subgraph node indices
+        self.subgraph_elem_comp = torch.zeros(len(self.edges_as_tuples), 2 * len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+        subgraph_node_indices = []  # List to store node indices (left/right) for each edge
+
         for i, edge in enumerate(self.edges):
             (u, v) = tuple(edge.tolist())
             edge_map = self.fragmentation_tree.edge_map
             left_fragment, right_fragment = None, None
+
             # Extract subgraphs from fragmentation tree (via edge_map)
             if u < v:
                 if (u, v) in edge_map:
@@ -256,15 +261,33 @@ class Metabolite:
                     if frag_list != {}:
                         left_fragment = frag_list["right"]
                         right_fragment = frag_list["left"]
-            
-            # Set fragment 
-            edge_elem_comp = torch.zeros(2*len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+
+            # Initialize element composition for the edge
+            edge_elem_comp = torch.zeros(2 * len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+
             if left_fragment is not None and right_fragment is not None:
+                # Compute element composition for left and right fragments
                 edge_elem_comp[:len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN)] = CovariateFeatureEncoder.get_element_composition(self.Graph.subgraph(left_fragment.subgraphs[0])).clone().detach().to(torch.float32)
                 edge_elem_comp[len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN):] = CovariateFeatureEncoder.get_element_composition(self.Graph.subgraph(right_fragment.subgraphs[0])).clone().detach().to(torch.float32)
-            
+                
+                # Track node indices for the subgraphs
+                subgraph_node_indices.append({
+                    "left": torch.tensor(left_fragment.subgraphs[0], dtype=torch.int64),
+                    "right": torch.tensor(right_fragment.subgraphs[0], dtype=torch.int64)
+                })
+            else:
+                # Handle edges with no fragments by zeroing out subgraph features
+                subgraph_node_indices.append({
+                    "left": torch.tensor([], dtype=torch.int64),  # Empty tensor for left subgraph
+                    "right": torch.tensor([], dtype=torch.int64)  # Empty tensor for right subgraph
+                })
+
+            # Store the element composition for the edge
             self.subgraph_elem_comp[i, :] = edge_elem_comp
 
+        # Store the subgraph node indices
+        self.subgraph_node_indices = subgraph_node_indices
+        
     def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_map_override=None, tolerance=DEFAULT_PPM, match_stats_only: bool = False):
         self.peak_matches = self.fragmentation_tree.match_peak_list(mz_fragments, int_list, tolerance=tolerance)
         self.edge_breaks = [frag.edges for mz in self.peak_matches.keys() for frag in self.peak_matches[mz]['fragments']]
@@ -388,6 +411,8 @@ class Metabolite:
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
                 edge_elem_comp = self.subgraph_elem_comp,
+                subgraph_node_indices = self.subgraph_node_indices,
+                subgraph_node_index = self.subgraph_node_indices,
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,
@@ -434,6 +459,8 @@ class Metabolite:
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
                 edge_elem_comp = self.subgraph_elem_comp,
+                subgraph_node_indices = self.subgraph_node_indices,
+                subgraph_node_index = self.subgraph_node_indices,
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,
