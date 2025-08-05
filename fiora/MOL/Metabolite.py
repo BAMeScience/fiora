@@ -16,7 +16,7 @@ from torch_geometric.data import Data
 import networkx as nx
 
 
-from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, DEFAULT_MODE_MAP, ADDUCT_WEIGHTS, ORDERED_ELEMENT_LIST_WITH_HYDROGEN
+from fiora.MOL.constants import DEFAULT_PPM, DEFAULT_MODES, DEFAULT_MODE_MAP, ADDUCT_WEIGHTS, ORDERED_ELEMENT_LIST_WITH_HYDROGEN, MAX_SUBGRAPH_NODES
 from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_degree_matrix, get_edges, get_identity_matrix, draw_graph, compute_edge_related_helper_matrices, get_helper_matrices_from_edges
 from fiora.MOL.FragmentationTree import FragmentationTree 
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
@@ -237,15 +237,21 @@ class Metabolite:
 
     def extract_subgraph_features_from_edges(self) -> None:
         if self.fragmentation_tree is None:
-            raise ValueError("Fragmentation tree is not set. Please fragment the molecule first.")
-        
+            self.subgraph_elem_comp = torch.zeros(0, 2 * len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+            self.subgraph_idx_left = torch.full((0, MAX_SUBGRAPH_NODES), -1, dtype=torch.int64)
+            self.subgraph_idx_right = torch.full((0, MAX_SUBGRAPH_NODES), -1, dtype=torch.int64)
+            return
+
+        edge_map = self.fragmentation_tree.edge_map
+        num_edges = len(self.edges)
+
         # Initialize tensors for element composition and subgraph node indices
-        self.subgraph_elem_comp = torch.zeros(len(self.edges_as_tuples), 2 * len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
-        subgraph_node_indices = []  # List to store node indices (left/right) for each edge
+        self.subgraph_elem_comp = torch.zeros(num_edges, 2 * len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN), dtype=torch.float32)
+        self.subgraph_idx_left = torch.full((num_edges, MAX_SUBGRAPH_NODES), -1, dtype=torch.int64)
+        self.subgraph_idx_right = torch.full((num_edges, MAX_SUBGRAPH_NODES), -1, dtype=torch.int64)
 
         for i, edge in enumerate(self.edges):
-            (u, v) = tuple(edge.tolist())
-            edge_map = self.fragmentation_tree.edge_map
+            u, v = edge[0].item(), edge[1].item()
             left_fragment, right_fragment = None, None
 
             # Extract subgraphs from fragmentation tree (via edge_map)
@@ -270,23 +276,22 @@ class Metabolite:
                 edge_elem_comp[:len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN)] = CovariateFeatureEncoder.get_element_composition(self.Graph.subgraph(left_fragment.subgraphs[0])).clone().detach().to(torch.float32)
                 edge_elem_comp[len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN):] = CovariateFeatureEncoder.get_element_composition(self.Graph.subgraph(right_fragment.subgraphs[0])).clone().detach().to(torch.float32)
                 
-                # Track node indices for the subgraphs
-                subgraph_node_indices.append({
-                    "left": torch.tensor(left_fragment.subgraphs[0], dtype=torch.int64),
-                    "right": torch.tensor(right_fragment.subgraphs[0], dtype=torch.int64)
-                })
-            else:
-                # Handle edges with no fragments by zeroing out subgraph features
-                subgraph_node_indices.append({
-                    "left": torch.tensor([], dtype=torch.int64),  # Empty tensor for left subgraph
-                    "right": torch.tensor([], dtype=torch.int64)  # Empty tensor for right subgraph
-                })
+                # Get node indices and truncate if necessary
+                left_nodes = torch.tensor(left_fragment.subgraphs[0], dtype=torch.int64)
+                right_nodes = torch.tensor(right_fragment.subgraphs[0], dtype=torch.int64)
+                
+                if len(left_nodes) > MAX_SUBGRAPH_NODES or len(right_nodes) > MAX_SUBGRAPH_NODES:
+                    warnings.warn(f"Metabolite {self.SMILES}: Subgraph size ({max(len(left_nodes), len(right_nodes))}) exceeds MAX_SUBGRAPH_NODES ({MAX_SUBGRAPH_NODES}). Truncating.")
+
+                
+                len_left = min(len(left_nodes), MAX_SUBGRAPH_NODES)
+                len_right = min(len(right_nodes), MAX_SUBGRAPH_NODES)
+
+                self.subgraph_idx_left[i, :len_left] = left_nodes[:len_left]
+                self.subgraph_idx_right[i, :len_right] = right_nodes[:len_right]
 
             # Store the element composition for the edge
             self.subgraph_elem_comp[i, :] = edge_elem_comp
-
-        # Store the subgraph node indices
-        self.subgraph_node_indices = subgraph_node_indices
         
     def match_fragments_to_peaks(self, mz_fragments, int_list=None, mode_map_override=None, tolerance=DEFAULT_PPM, match_stats_only: bool = False):
         self.peak_matches = self.fragmentation_tree.match_peak_list(mz_fragments, int_list, tolerance=tolerance)
@@ -411,8 +416,8 @@ class Metabolite:
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
                 edge_elem_comp = self.subgraph_elem_comp,
-                subgraph_node_indices = self.subgraph_node_indices,
-                subgraph_node_index = self.subgraph_node_indices,
+                subgraph_idx_left=self.subgraph_idx_left,
+                subgraph_idx_right=self.subgraph_idx_right,
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,
@@ -459,8 +464,8 @@ class Metabolite:
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
                 edge_elem_comp = self.subgraph_elem_comp,
-                subgraph_node_indices = self.subgraph_node_indices,
-                subgraph_node_index = self.subgraph_node_indices,
+                subgraph_idx_left=self.subgraph_idx_left,
+                subgraph_idx_right=self.subgraph_idx_right,
                 static_graph_features=self.setup_features,
                 static_edge_features=self.setup_features_per_edge,
                 static_rt_features = self.rt_setup_features,

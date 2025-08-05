@@ -47,63 +47,50 @@ class EdgePropertyPredictor(torch.nn.Module):
     def concat_node_pairs(self, X, batch):
         """
         Concatenates node pairs and optionally adds subgraph features, including element composition.
-
-        Args:
-            X (torch.Tensor): Node features of shape [num_nodes, num_features].
-            batch (DataBatch): Batch containing edge_index, subgraph_node_indices, and batch.
-
-        Returns:
-            torch.Tensor: Concatenated node pairs with optional subgraph features and element composition.
+        This version includes debug messages to trace tensor shapes.
         """
+        
         src, dst = batch["edge_index"]
-        node_pairs = torch.cat([X[src], X[dst]], dim=1)  # Concatenate source and destination node features
-        if self.subgraph_features:
-            subgraph_features = []
-            edge_count = batch["edge_index"].size(1)  # Number of edges
-            subgraph_feature_dim = X.size(1)  # Feature dimension of node features
+        
+        # 1. Node Pair Concatenation
+        X_src = X[src]
+        X_dst = X[dst]
 
-            for graph_id, graph_subgraphs in enumerate(batch["subgraph_node_indices"]):
-                for edge_id, subgraph in enumerate(graph_subgraphs):
-                    # Adjust local indices to global indices using batch["batch"]
-                    left_nodes = subgraph["left"]
-                    right_nodes = subgraph["right"]
+        node_pairs = torch.cat([X_src, X_dst], dim=1)
 
-                    # Convert local indices to global indices
-                    left_global_indices = left_nodes + batch.ptr[graph_id]
-                    right_global_indices = right_nodes + batch.ptr[graph_id]
+        if self.subgraph_features:            
+            # 2. Subgraph Feature Pooling
+            num_edges = batch.edge_index.size(1)
+            edge_batch_map = batch.batch[batch.edge_index[0]]
 
-                    # Mean-pool node features for left and right subgraphs
-                    if len(left_global_indices) > 0:
-                        left_features = self.pooling_func(X[left_global_indices], torch.zeros(len(left_global_indices), dtype=torch.int64, device=X.device))
-                    else:
-                        left_features = torch.zeros(subgraph_feature_dim, device=X.device)
+            left_indices = batch.subgraph_idx_left + batch.ptr[edge_batch_map].unsqueeze(1)
+            right_indices = batch.subgraph_idx_right + batch.ptr[edge_batch_map].unsqueeze(1)
 
-                    if len(right_global_indices) > 0:
-                        right_features = self.pooling_func(X[right_global_indices], torch.zeros(len(right_global_indices), dtype=torch.int64, device=X.device))
-                    else:
-                        right_features = torch.zeros(subgraph_feature_dim, device=X.device)
+            left_batch_vec = torch.arange(num_edges, device=X.device).repeat_interleave(left_indices.size(1))
+            right_batch_vec = torch.arange(num_edges, device=X.device).repeat_interleave(right_indices.size(1))
 
-                    # Ensure left_features and right_features are 1D tensors
-                    if left_features.dim() > 1:
-                        left_features = left_features.squeeze()
-                    if right_features.dim() > 1:
-                        right_features = right_features.squeeze()
+            left_flat = left_indices.flatten()
+            right_flat = right_indices.flatten()
+            left_mask = left_flat != -1
+            right_mask = right_flat != -1
 
-                    # Concatenate left and right features into a single 1D tensor
-                    combined_features = torch.cat([left_features, right_features], dim=0)
-                    subgraph_features.append(combined_features)
+            pooled_left = torch.zeros(num_edges, X.size(1), device=X.device)
+            pooled_right = torch.zeros(num_edges, X.size(1), device=X.device)
 
-            # Ensure all tensors in subgraph_features have the same size
-            expected_size = 2 * subgraph_feature_dim
-            subgraph_features = [sf if sf.size(0) == expected_size else torch.zeros(expected_size, device=X.device) for sf in subgraph_features]
-
-            # Stack subgraph features into a single tensor
-            subgraph_features = torch.stack(subgraph_features, dim=0)  # Shape: [num_edges, 2 * subgraph_feature_dim]
-            node_pairs = torch.cat([node_pairs, subgraph_features], dim=1)  # Concatenate subgraph features
-            node_pairs = torch.cat([node_pairs, batch["edge_elem_comp"]], dim=1)  # Concatenate element composition features
+            if left_mask.any():
+                pooled_left = self.pooling_func(X[left_flat[left_mask]], left_batch_vec[left_mask], size=num_edges)
+            if right_mask.any():
+                pooled_right = self.pooling_func(X[right_flat[right_mask]], right_batch_vec[right_mask], size=num_edges)
+            
+            subgraph_features = torch.cat([pooled_left, pooled_right], dim=1)
+            # 3. Final Concatenation with Subgraph Features
+            edge_elem_comp = batch["edge_elem_comp"]
+            
+            # This is the likely point of failure
+            node_pairs = torch.cat([node_pairs, subgraph_features, edge_elem_comp], dim=1)
 
         return node_pairs
-        
+            
     def forward(self, X, batch):  
         # Melt node features into a stack of edges (represented by left and right node)
         X = self.concat_node_pairs(X, batch)
