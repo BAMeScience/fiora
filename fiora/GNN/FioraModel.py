@@ -90,7 +90,7 @@ class FioraModel(torch.nn.Module):
         elif transformation == "off":
             self.transform = torch.nn.Identity()
         else:
-            raise ValueError(f"Unknow transformation type: {transformation}")
+            raise ValueError(f"Unknown transformation type: {transformation}")
             
 
     '''
