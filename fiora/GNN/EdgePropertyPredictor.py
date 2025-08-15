@@ -1,12 +1,12 @@
 import torch
 from typing import Dict
 import torch_geometric.nn as geom_nn
-
+from typing import Literal
 
 from fiora.MOL.constants import ORDERED_ELEMENT_LIST_WITH_HYDROGEN
 
 class EdgePropertyPredictor(torch.nn.Module):
-    def __init__(self, edge_feature_dict: Dict, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, dense_dim: int=None, embedding_dim: int=200, embedding_aggregation_type: str='concat', residual_connections: bool=False, subgraph_features: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
+    def __init__(self, edge_feature_dict: Dict, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, dense_dim: int=None, embedding_dim: int=200, embedding_aggregation_type: str='concat', residual_connections: bool=False, subgraph_features: bool=False, pooling_func: Literal["avg", "max"]="avg", input_dropout: float=0, latent_dropout: float=0) -> None:
         ''' Initialize the EdgePropertyPredictor model.
             Args:
                 edge_feature_dict (dict): Dictionary containing edge feature information.
@@ -29,7 +29,7 @@ class EdgePropertyPredictor(torch.nn.Module):
         self.latent_dropout = torch.nn.Dropout(latent_dropout)
         self.residual_connections = residual_connections
         self.subgraph_features = subgraph_features
-        self.pooling_func = geom_nn.global_mean_pool
+        self.pooling_func = geom_nn.global_mean_pool if pooling_func == "avg" else geom_nn.global_max_pool
         num_subgraph_features = 2*len(ORDERED_ELEMENT_LIST_WITH_HYDROGEN) + hidden_features*2 if subgraph_features else 0
 
         dense_layers = []

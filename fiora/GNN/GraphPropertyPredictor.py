@@ -1,10 +1,11 @@
 import torch
 import torch_geometric.nn as geom_nn
 
+from typing import Literal
 
 
 class GraphPropertyPredictor(torch.nn.Module):
-    def __init__(self, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, dense_dim: int=None, residual_connections: bool=False, input_dropout: float=0, latent_dropout: float=0) -> None:
+    def __init__(self, hidden_features: int, static_features: int, out_dimension: int, dense_depth: int=0, dense_dim: int=None, residual_connections: bool=False, pooling_func: Literal["avg", "max"]="avg", input_dropout: float=0, latent_dropout: float=0) -> None:
         ''' Initialize the GraphPropertyPredictor model.
             Args:
                 hidden_features (int): Number of hidden features for each layer.
@@ -19,7 +20,7 @@ class GraphPropertyPredictor(torch.nn.Module):
         super().__init__()
 
         self.activation = torch.nn.ELU()
-        self.pooling_func = geom_nn.global_mean_pool
+        self.pooling_func = geom_nn.global_mean_pool if pooling_func == "avg" else geom_nn.global_max_pool
         self.input_dropout = torch.nn.Dropout(input_dropout)
         self.latent_dropout = torch.nn.Dropout(latent_dropout)
         self.residual_connections = residual_connections
