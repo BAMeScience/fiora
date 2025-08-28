@@ -104,6 +104,7 @@ class FioraModel(torch.nn.Module):
     def _compile_output(self, edge_values, graph_values, batch) -> torch.tensor:
         output = torch.zeros(edge_values.shape[0] * edge_values.shape[1] + graph_values.shape[0] * 2, device=edge_values.device)
         batch_ptr = 0
+        segment_ptr = [0]  # cumulative boundaries per-graph (len=num_graphs+1)
         
         # Map edges to graph index (repeat left nodes according to edge dimension and retrieve graph/batch index)
         edge_graph_map = batch["batch"][torch.repeat_interleave(batch["edge_index"][0,:], self.edge_dim)]
@@ -112,8 +113,9 @@ class FioraModel(torch.nn.Module):
             offset = edges.shape[0] + graph_values.shape[1] * 2 # Precursor prediction output is repeated to account for bi-directional edge occurances
             output[batch_ptr:batch_ptr + offset,] = self.transform(torch.cat([edges, graph_values[i], graph_values[i]], axis=-1)) # concat and apply softmax
             batch_ptr += offset
+            segment_ptr.append(batch_ptr)
 
-        return output
+        return output, torch.tensor(segment_ptr, device=edge_values.device, dtype=torch.long)
         
     def get_graph_embedding(self, batch):
         batch["node_embedding"] = self.node_embedding(batch["x"])
@@ -133,9 +135,9 @@ class FioraModel(torch.nn.Module):
         
         edge_values = self.edge_module(X, batch)
         graph_values = self.precursor_module(X, batch)
-        fragment_probs = self._compile_output(edge_values, graph_values, batch)        
+        fragment_probs, segment_ptr = self._compile_output(edge_values, graph_values, batch)        
         
-        output = {'fragment_probs': fragment_probs}
+        output = {'fragment_probs': fragment_probs, 'segment_ptr': segment_ptr}
         
         if with_RT:
             rt_values = self.RT_module(X, batch, covariate_tag="static_rt_features")
@@ -146,7 +148,7 @@ class FioraModel(torch.nn.Module):
             output["ccs"] = ccs_values
 
         return output
-        
+    
     @classmethod
     def load(cls, PATH: str) -> 'FioraModel':
         

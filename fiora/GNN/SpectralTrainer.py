@@ -47,10 +47,13 @@ class SpectralTrainer(Trainer):
             kwargs={}
             if with_weights:
                 kwargs={"weight": batch["weight_tensor"]}
+            if getattr(loss_fn, "requires_segment_ptr", False):
+                kwargs["segment_ptr"] = y_pred.get("segment_ptr")
             
             # Compute loss
             loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # with logits
-            if not rt_metric: metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
+            if not rt_metric:
+                metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
 
             # Add RT and CCS to loss
             if with_RT:
@@ -72,8 +75,7 @@ class SpectralTrainer(Trainer):
             # Backpropagate
             optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
-            
+            optimizer.step()            
 
         # End of training cycle: Evaluation
         stats = metrics.compute()
@@ -99,13 +101,15 @@ class SpectralTrainer(Trainer):
                         kwargs={}
                         if with_weights:
                             kwargs={"weight": batch["weight_tensor"]}
+                        if getattr(loss_fn, "requires_segment_ptr", False):
+                            kwargs["segment_ptr"] = y_pred.get("segment_ptr")
                         loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
                         if not rt_metric:
                             metrics.update(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
                         if rt_metric:
                             metrics(y_pred["rt"][batch["retention_mask"]], batch["retention_time"][batch["retention_mask"]], **kwargs) # call update
-                            metrics(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs) # call update                      
-
+                            metrics(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs) # call update
+        
         # End of Validation cycle
         stats = metrics.compute()
         print(f'\t{title} RMSE: {torch.sqrt(stats["mse"]):>.4f}')
