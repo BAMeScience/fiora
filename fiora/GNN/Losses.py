@@ -54,25 +54,14 @@ class WeightedMAEMetric(Metric):
 
   
 class GraphwiseKLLoss(torch.nn.Module):
-    """
-    KL divergence per-graph over variable-length compiled vectors.
-    Expects:
-      - y_pred: probabilities (already softmaxed per-graph), shape [N_total]
-      - y_true: target nonnegative scores, shape [N_total] (normalized per-graph inside)
-      - segment_ptr: LongTensor of shape [num_graphs+1], cumulative boundaries
-      - weight (optional): same shape as y_true; reweights targets within each graph
-    Reduction:
-      - mean: mean over graphs
-      - sum: sum over graphs
-      - mean_edge: mean over all elements
-    """
     requires_segment_ptr = True
 
-    def __init__(self, eps: float = 1e-8, reduction: str = "mean", normalize_targets: bool = True):
+    def __init__(self, eps: float = 1e-8, reduction: str = "mean", normalize_targets: bool = True, normalize_pred: bool = True):
         super().__init__()
         self.eps = eps
         self.reduction = reduction
         self.normalize_targets = normalize_targets
+        self.normalize_pred = normalize_pred
 
     def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor, segment_ptr: torch.Tensor, weight: torch.Tensor = None):
         assert segment_ptr.dim() == 1 and segment_ptr.numel() >= 2, "segment_ptr must be 1D with at least 2 entries"
@@ -84,18 +73,19 @@ class GraphwiseKLLoss(torch.nn.Module):
             l = segment_ptr[g].item()
             r = segment_ptr[g+1].item()
 
-            q = y_pred[l:r].clamp_min(self.eps)                  # prob
-            p = y_true[l:r].clamp_min(0.0)                       # nonneg
+            q = y_pred[l:r].clamp_min(self.eps)
+            if self.normalize_pred:
+                q = q / q.sum().clamp_min(self.eps)              # normalize q per-graph
+
+            p = y_true[l:r].clamp_min(0.0)
             if weight is not None:
                 w = weight[l:r].clamp_min(self.eps)
-                p = p * w                                        # weighted targets
+                p = p * w
 
             if self.normalize_targets or p.sum() <= 0:
-                p = p / p.sum().clamp_min(self.eps)              # normalize per-graph to sum=1
+                p = p / p.sum().clamp_min(self.eps)              # normalize p per-graph
 
-            # KL(p || q) = sum p * (log p - log q)
             kl = (p * (p.clamp_min(self.eps).log() - q.log())).sum()
-
             total = total + kl
             total_el += (r - l)
 
@@ -103,26 +93,16 @@ class GraphwiseKLLoss(torch.nn.Module):
             return total
         elif self.reduction == "mean_edge":
             return total / max(total_el, 1)
-        else:  # mean over graphs
+        else:
             return total / max(num_graphs, 1)
-        
 
 class GraphwiseKLLossMetric(Metric):
-    """
-    Metric counterpart to GraphwiseKLLoss.
-    Computes KL(p || q) per graph and reduces by:
-      - mean: mean over graphs
-      - sum: sum over graphs
-      - mean_edge: mean over all elements
-    Accepts optional segment_ptr and weight. If segment_ptr is None,
-    the whole vector is treated as a single graph.
-    """
-    def __init__(self, eps: float = 1e-8, reduction: str = "mean", normalize_targets: bool = True, **kwargs):
+    def __init__(self, eps: float = 1e-8, reduction: str = "mean", normalize_targets: bool = True, normalize_pred: bool = True, **kwargs):
         super().__init__(**kwargs)
         self.eps = eps
         self.reduction = reduction
         self.normalize_targets = normalize_targets
-
+        self.normalize_pred = normalize_pred
         self.add_state("total", default=torch.tensor(0.0), dist_reduce_fx="sum")
         self.add_state("total_graphs", default=torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
         self.add_state("total_elements", default=torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
@@ -131,23 +111,25 @@ class GraphwiseKLLossMetric(Metric):
         if segment_ptr is None:
             segment_ptr = torch.tensor([0, preds.numel()], device=preds.device, dtype=torch.long)
 
-        assert segment_ptr.dim() == 1 and segment_ptr.numel() >= 2, "segment_ptr must be 1D with at least 2 entries"
         num_graphs = segment_ptr.numel() - 1
-
         total = preds.new_tensor(0.0)
         total_el = 0
         for g in range(num_graphs):
             l = segment_ptr[g].item()
-            r = segment_ptr[g + 1].item()
+            r = segment_ptr[g+1].item()
+            if r <= l:
+                continue
 
-            q = preds[l:r].clamp_min(self.eps)         # prob
-            p = target[l:r].clamp_min(0.0)             # nonneg
+            q = preds[l:r].clamp_min(self.eps)
+            if self.normalize_pred:
+                q = q / q.sum().clamp_min(self.eps)
+
+            p = target[l:r].clamp_min(0.0)
             if weight is not None:
                 w = weight[l:r].clamp_min(self.eps)
                 p = p * w
-
             if self.normalize_targets or p.sum() <= 0:
-                p = p / p.sum().clamp_min(self.eps)    # normalize per-graph
+                p = p / p.sum().clamp_min(self.eps)
 
             kl = (p * (p.clamp_min(self.eps).log() - q.log())).sum()
             total = total + kl
@@ -162,5 +144,5 @@ class GraphwiseKLLossMetric(Metric):
             return self.total
         elif self.reduction == "mean_edge":
             return self.total / torch.clamp(self.total_elements.float(), min=1.0)
-        else:  # "mean"
+        else:
             return self.total / torch.clamp(self.total_graphs.float(), min=1.0)
