@@ -38,6 +38,9 @@ class Metabolite:
         self.id = id
         self.loss_weight = 1.0
         self.precursor_positive = None
+        self.ring_count = None
+        self.presence_rare_elements = None
+        self.elem_distr_vec = None
 
     def __repr__(self):
         return f"<Metabolite: {self.SMILES}>"
@@ -67,6 +70,18 @@ class Metabolite:
     # Setter for Precursor Adduct
     def set_precursor_positive(self, precursor_adduct):
         self.precursor_positive = (precursor_adduct == "[M+H]+")
+
+    # Setter for Ring Count
+    def set_ring_count(self, ring_count):
+        self.ring_count = ring_count
+
+    # Setter for Presence of Rare Elements
+    def set_presence_rare_elements(self, presence_rare_elem):
+        self.presence_rare_elements = presence_rare_elem 
+
+    # Setter for Elem Distribution Vector
+    def set_elem_distr_vec(self, elem_distr_vec):
+        self.elem_distr_vec = elem_distr_vec
     
     def get_id(self):
         return self.id
@@ -132,6 +147,24 @@ class Metabolite:
                 element_distribution[elem] = 1
 
         return element_distribution
+
+    def calc_abs_elem_distr_vec(self, all_unique_elements):
+        """Calculate the absolute element distribution vector with fixed length, for a metabolite."""
+        # Create a mapping of elements to indices, e.g. {"C": 0, "H": 1, "N": 2, "O": 3, "S": 4}
+        element_to_index = {element: i for i, element in enumerate(all_unique_elements)}
+
+        # Initialize a zero vector of fixed length
+        element_vector = np.zeros(len(all_unique_elements), dtype=int)
+
+        # Count occurrences of each element
+        unique_elements, counts = np.unique(self.node_elements, return_counts=True)
+
+        # Fill the vector using the mapping
+        for element, count in zip(unique_elements, counts):
+            element_vector[element_to_index[element]] = count
+
+        return element_vector
+
     
     def compute_graph_attributes(self, node_encoder = None, bond_encoder = None):
 
@@ -364,6 +397,9 @@ class Metabolite:
                 static_rt_features = self.rt_setup_features,
                 weight = self.ExactMolWeight,
                 precursor_positive = self.precursor_positive,
+                ring_count = self.ring_count,
+                presence_rare_elements = self.presence_rare_elements,
+                elem_distr_vec = self.elem_distr_vec,
                 
                 # masks and groups
                 validation_mask=self.is_edge_not_in_ring.bool(),
