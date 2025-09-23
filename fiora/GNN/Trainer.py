@@ -10,6 +10,7 @@ from typing import Literal, List, Dict, Any
 class Trainer(ABC):
     def __init__(self, data: Any, train_val_split: float=0.8, split_by_group: bool=False, only_training: bool=False,
                  train_keys: List[int]=[], val_keys: List[int]=[], test_keys: List[int]=[], seed: int=42, num_workers: int=0, device: str="cpu") -> None:
+
         
         self.only_training = only_training
         self.num_workers = num_workers
@@ -20,6 +21,7 @@ class Trainer(ABC):
             self.validation_data = Dataset()
         elif split_by_group:
             self._split_by_group(data, train_val_split, train_keys, val_keys, test_keys, seed)
+
         else:
             train_size = int(len(data) * train_val_split)
             self.training_data, self.validation_data = torch.utils.data.random_split(
@@ -27,7 +29,6 @@ class Trainer(ABC):
                 generator=torch.Generator().manual_seed(seed)
                 )
 
-    
     def _split_by_group(self, data, train_val_split: float, train_keys: List[int], val_keys: List[int], test_keys: List[int], seed: int):
         group_ids = [getattr(x, "group_id") for x in data]
         keys = np.unique(group_ids)
@@ -44,6 +45,7 @@ class Trainer(ABC):
         self.training_data = torch.utils.data.Subset(data, train_ids)
         self.validation_data = torch.utils.data.Subset(data, val_ids)
         self.test_data = torch.utils.data.Subset(data, test_ids)
+
 
     def _get_default_metrics(self, problem_type: Literal["classification", "regression", "softmax_regression"]):
         metrics = {

@@ -52,7 +52,7 @@ class SimulationFramework:
         return
 
     
-    def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity=0.001, merge_fragment_duplicates=True, transform_prob: str="None"):
+    def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity: float=0.001, merge_fragment_duplicates: bool=True, transform_prob: str="None"):
 
         if not self.mode_mapper:
             mode_mapper = metabolite.mode_mapper
@@ -128,7 +128,7 @@ class SimulationFramework:
     
  
     
-    def simulate_and_score(self, metabolite: Metabolite, model: torch.nn.Module|None=None, base_attr_name: str="compiled_probsALL", query_peaks: Dict|None=None, as_batch: bool=True):
+    def simulate_and_score(self, metabolite: Metabolite, model: torch.nn.Module|None=None, base_attr_name: str="compiled_probsALL", query_peaks: Dict|None=None, as_batch: bool=True, min_intensity: float=0.001):
         prediction = self.predict_metabolite_property(metabolite, model=model, as_batch=as_batch)
         stats = {}
 
@@ -139,7 +139,7 @@ class SimulationFramework:
             
         setattr(metabolite, base_attr_name + "_pred", prediction["fragment_probs"])
         transform_prob = "square" if ("training_label" in model.model_params and model.model_params["training_label"] == "compiled_probsSQRT") else "None"
-        stats["sim_peaks"] = self.simulate_spectrum(metabolite, base_attr_name + "_pred", precursor_mode=metabolite.metadata["precursor_mode"], transform_prob=transform_prob)
+        stats["sim_peaks"] = self.simulate_spectrum(metabolite, base_attr_name + "_pred", precursor_mode=metabolite.metadata["precursor_mode"], transform_prob=transform_prob, min_intensity=min_intensity)
         
         
         # Score performance if groundtruth is available
@@ -156,24 +156,20 @@ class SimulationFramework:
             stats["spectral_cosine"], stats["spectral_bias"] = spectral_cosine(query_peaks, stats["sim_peaks"], with_bias=True)
             stats["spectral_sqrt_cosine"], stats["spectral_sqrt_bias"] = spectral_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True)
             stats["spectral_sqrt_cosine_wo_prec"], stats["spectral_sqrt_bias_wo_prec"] = spectral_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, remove_mz=metabolite.get_theoretical_precursor_mz(ion_type=metabolite.metadata["precursor_mode"]), with_bias=True)
+            stats["spectral_sqrt_cosine_avg"], stats["spectral_sqrt_bias_avg"] = (stats["spectral_sqrt_cosine"] + stats["spectral_sqrt_cosine_wo_prec"]) / 2.0, (stats["spectral_sqrt_bias"] + stats["spectral_sqrt_bias_wo_prec"]) / 2.0
             stats["spectral_refl_cosine"], stats["spectral_refl_bias"] = spectral_reflection_cosine(query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True)
             stats["steins_cosine"], stats["steins_bias"] = reweighted_dot(query_peaks, stats["sim_peaks"], int_pow=0.5, mz_pow=0.5, with_bias=True)
         return stats
     
-    def simulate_all(self, df: pd.DataFrame, model: torch.nn.Module|None=None, base_attr_name: str="compiled_probsALL", suffix: str="", groundtruth=True):
+    def simulate_all(self, df: pd.DataFrame, model: torch.nn.Module|None=None, base_attr_name: str="compiled_probsALL", suffix: str="", groundtruth=True, min_intensity: float=0.001):
         
         with torch.no_grad():
             model.eval()
 
-            
-            # Add additional columns to dataframe (cause of errors when new data is added to stats)
-            if groundtruth:
-                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["cosine_similarity", "kl_div", "sim_peaks", "spectral_cosine", "spectral_sqrt_cosine", "spectral_sqrt_cosine_wo_prec", "spectral_refl_cosine", "spectral_bias", "spectral_sqrt_bias", "spectral_sqrt_bias_wo_prec", "spectral_refl_bias", "steins_cosine", "steins_bias", "RT_pred", "RT_dif", "CCS_pred"]])])
-            else:
-                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in ["sim_peaks", "RT_pred", "CCS_pred"]])])
             for i,data in df.iterrows():
                 metabolite = data["Metabolite"]
-                stats = self.simulate_and_score(metabolite, model, base_attr_name, query_peaks=data["peaks"] if groundtruth else None)
+                stats = self.simulate_and_score(metabolite, model, base_attr_name, query_peaks=data["peaks"] if groundtruth else None, min_intensity=min_intensity)
+                df = pd.concat([df, pd.DataFrame(columns=[x + suffix for x in stats.keys()])]) # Add new empty columns for all statistics
                 
                 for key, value in stats.items():
                     if key + suffix in df.columns:

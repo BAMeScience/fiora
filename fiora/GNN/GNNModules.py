@@ -212,16 +212,22 @@ class GNNCompiler(torch.nn.Module):
             raise ValueError(f"Unknow transformation type: {transformation}")
             
 
-    def compile_output(self, edge_values, graph_values, batch):
+    '''
+        Compile output is the heart of the fragment probability prediction.
         
+        It combines edge/fragment prediction with precursor prediction for each individual graph/input and applies softmax. 
+        Then, all output values are stacked in a single dimension.
+    '''
+    def compile_output(self, edge_values, graph_values, batch) -> torch.tensor:
         output = torch.zeros(edge_values.shape[0] * edge_values.shape[1] + graph_values.shape[0] * 2, device=edge_values.device)
         batch_ptr = 0
-        edge_graph_map = batch["batch"][torch.repeat_interleave(batch["edge_index"][0,:], self.edge_dim)] # edge to batch (graph) matching, though edges are repeated as output dimension increases
+        
+        # Map edges to graph index (repeat left nodes according to edge dimension and retrieve graph/batch index)
+        edge_graph_map = batch["batch"][torch.repeat_interleave(batch["edge_index"][0,:], self.edge_dim)]
         for i in range(batch.num_graphs):
-            edges = edge_values.flatten()[edge_graph_map == i]
-            #edge_values[edge_graph_map == i] = self.transform(edge_values[edge_graph_map == i])
-            offset = edges.shape[0] + graph_values.shape[1] * 2 # output size per graph: all edge values + 2*graph_value (multiply by 2 to account for doubled eges)
-            output[batch_ptr:batch_ptr + offset,] = self.transform(torch.cat([edges, graph_values[i], graph_values[i]], axis=-1)) # probably: flatten graph_values too
+            edges = edge_values.flatten()[edge_graph_map == i] # Retrieve edge_values for graph i 
+            offset = edges.shape[0] + graph_values.shape[1] * 2 # Precursor prediction output is repeated to account for bi-directional edge occurances
+            output[batch_ptr:batch_ptr + offset,] = self.transform(torch.cat([edges, graph_values[i], graph_values[i]], axis=-1)) # concat and apply softmax
             batch_ptr += offset
 
         return output
