@@ -68,6 +68,7 @@ class GNN(torch.nn.Module):
         self.gnn_type = gnn_type
         self.residual_connections = residual_connections
         self.layer_stacking = layer_stacking
+        self.input_embedding_dim = embedding_dim
         node_features =  embedding_dim
         
         
@@ -114,4 +115,8 @@ class GNN(torch.nn.Module):
 
     def get_embedding_dimension(self):
         """Get the output dimension of the GNN."""
+        if len(self.graph_layers) == 0:
+            if self.input_embedding_dim is None:
+                raise ValueError("embedding_dim must be provided when depth=0.")
+            return self.input_embedding_dim
         return self.graph_layers[-1].out_channels * (len(self.graph_layers) + 1 if self.layer_stacking else 1)
