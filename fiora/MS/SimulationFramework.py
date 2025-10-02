@@ -43,11 +43,12 @@ class SimulationFramework:
             for i,d in df.iterrows():
                 metabolite = d["Metabolite"]
                 prediction = self.predict_metabolite_property(metabolite, model=model, as_batch=as_batch)
-                if self.with_RT:
-                    setattr(metabolite, attr_name + "_pred", prediction["fragment_probs"])
+                if self.with_RT:                 
                     setattr(metabolite, "RT_pred", prediction["rt"].squeeze())
-                else:
-                    setattr(metabolite, attr_name + "_pred", prediction["fragment_probs"])
+                if self.with_CCS:
+                    setattr(metabolite, "CCS_pred", prediction["ccs"].squeeze())
+                setattr(metabolite, attr_name + "_pred", prediction["fragment_probs"])
+                
         return
 
     

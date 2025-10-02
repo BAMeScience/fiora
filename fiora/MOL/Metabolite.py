@@ -45,6 +45,10 @@ class Metabolite:
         self.morganFingerCountOnes = self.morganFinger.GetNumOnBits()
         self.id = id
         self.loss_weight = 1.0
+        self.precursor_positive = None
+        self.ring_count = None
+        self.presence_rare_elements = None
+        self.elem_distr_vec = None
 
     def __repr__(self):
         return f"<Metabolite: {self.SMILES}>"
@@ -70,6 +74,22 @@ class Metabolite:
             elif bit_other < bit_this:
                 return False
         return False
+    
+    # Setter for Precursor Adduct
+    def set_precursor_positive(self, precursor_adduct):
+        self.precursor_positive = (precursor_adduct == "[M+H]+")
+
+    # Setter for Ring Count
+    def set_ring_count(self, ring_count):
+        self.ring_count = ring_count
+
+    # Setter for Presence of Rare Elements
+    def set_presence_rare_elements(self, presence_rare_elem):
+        self.presence_rare_elements = presence_rare_elem 
+
+    # Setter for Elem Distribution Vector
+    def set_elem_distr_vec(self, elem_distr_vec):
+        self.elem_distr_vec = elem_distr_vec
     
     def get_id(self):
         return self.id
@@ -108,7 +128,51 @@ class Metabolite:
     # class-specific functions
     def create_molecular_structure_graph(self):
         self.Graph = mol_to_graph(self.MOL)
+
+    def calc_element_distribution(self):
+        element_distribution = {}
+        total_elements = len(self.node_elements)
+
+        for elem in self.node_elements:
+            if elem in element_distribution:
+                element_distribution[elem] += 1
+            else:
+                element_distribution[elem] = 1
+
+            # Convert counts to ratios
+        for elem in element_distribution:
+            element_distribution[elem] /= total_elements
+
+        return element_distribution
     
+    def calc_abs_elem_distr(self):
+        element_distribution = {}
+
+        for elem in self.node_elements:
+            if elem in element_distribution:
+                element_distribution[elem] += 1
+            else:
+                element_distribution[elem] = 1
+
+        return element_distribution
+
+    def calc_abs_elem_distr_vec(self, all_unique_elements):
+        """Calculate the absolute element distribution vector with fixed length, for a metabolite."""
+        # Create a mapping of elements to indices, e.g. {"C": 0, "H": 1, "N": 2, "O": 3, "S": 4}
+        element_to_index = {element: i for i, element in enumerate(all_unique_elements)}
+
+        # Initialize a zero vector of fixed length
+        element_vector = np.zeros(len(all_unique_elements), dtype=int)
+
+        # Count occurrences of each element
+        unique_elements, counts = np.unique(self.node_elements, return_counts=True)
+
+        # Fill the vector using the mapping
+        for element, count in zip(unique_elements, counts):
+            element_vector[element_to_index[element]] = count
+
+        return element_vector
+
     
     def compute_graph_attributes(self, node_encoder: AtomFeatureEncoder|None = None, bond_encoder: BondFeatureEncoder|None = None) -> None:
 
@@ -135,6 +199,7 @@ class Metabolite:
         # Lists
         self.atoms_in_order = [self.Graph.nodes[atom]['atom'] for atom in self.Graph.nodes()]
         self.node_elements = [self.Graph.nodes[atom]['atom'].GetSymbol() for atom in self.Graph.nodes()]
+        self.element_distribution = self.calc_element_distribution()
         self.edge_bond_names = [self.Graph[u][v]['bond_type'].name for u,v in self.edges_as_tuples]
         if bond_encoder:
             self.edge_bond_types = torch.tensor([bond_encoder.number_mapper["bond_type"][bond_name] for bond_name in self.edge_bond_names], dtype=torch.long)
@@ -337,7 +402,35 @@ class Metabolite:
             'ms_num_all_peaks': len(mz_fragments)  
         }
             
-    def as_geometric_data(self, with_labels=True):
+    def as_geometric_data(self, with_labels=True, ccs_only=False):
+        if ccs_only:
+            return Data(
+                x=self.node_features,
+                edge_index=self.edges.t().contiguous(),
+                edge_type=self.edge_bond_types,
+                edge_attr=self.bond_features,
+                static_graph_features=self.setup_features,
+                static_edge_features=self.setup_features_per_edge,
+                static_rt_features = self.rt_setup_features,
+                weight = self.ExactMolWeight,
+                precursor_positive = self.precursor_positive,
+                ring_count = self.ring_count,
+                presence_rare_elements = self.presence_rare_elements,
+                elem_distr_vec = self.elem_distr_vec,
+                
+                # masks and groups
+                validation_mask=self.is_edge_not_in_ring.bool(),
+                group_id=self.id,
+                
+                # additional information
+                is_node_aromatic=self.is_node_aromatic,
+                is_edge_aromatic=self.is_edge_aromatic,
+
+                ccs = self.ccs,
+                ccs_mask = self.ccs_mask,
+
+                smiles = self.SMILES
+            )
         if with_labels:
             return Data(
                 x=self.node_features,

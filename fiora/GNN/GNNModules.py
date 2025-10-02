@@ -240,7 +240,7 @@ class GNNCompiler(torch.nn.Module):
         return pooling_func(X, batch["batch"])
         
 
-    def forward(self, batch, with_RT=False, with_CCS=False):
+    def forward(self, batch, with_RT=True, with_CCS=True):
 
         # Embed node features
         batch["node_embedding"] = self.node_embedding(batch["x"])
