@@ -25,8 +25,9 @@ class SpectralTrainer(Trainer):
         if metric_dict:
             self.metrics = {
                 data_split: MetricTracker(MetricCollection({
-                        t: M() for t,M in metric_dict.items()
-                    })).to(device)
+                        t: M() for t, M in metric_dict.items()
+                    }), 
+                    maximize=False).to(device)
                 for data_split in ["train", "val", "masked_val", "test"]
             }
         else:
@@ -46,10 +47,13 @@ class SpectralTrainer(Trainer):
             kwargs={}
             if with_weights:
                 kwargs={"weight": batch["weight_tensor"]}
+            if getattr(loss_fn, "requires_segment_ptr", False):
+                kwargs["segment_ptr"] = y_pred.get("segment_ptr")
             
             # Compute loss
             loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # with logits
-            if not rt_metric: metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
+            if not rt_metric:
+                metrics(y_pred["fragment_probs"], batch[self.y_tag], **kwargs) # call update
 
             # Add RT and CCS to loss
             if with_RT:
@@ -71,8 +75,7 @@ class SpectralTrainer(Trainer):
             # Backpropagate
             optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
-            
+            optimizer.step()            
 
         # End of training cycle: Evaluation
         stats = metrics.compute()
@@ -98,13 +101,15 @@ class SpectralTrainer(Trainer):
                         kwargs={}
                         if with_weights:
                             kwargs={"weight": batch["weight_tensor"]}
+                        if getattr(loss_fn, "requires_segment_ptr", False):
+                            kwargs["segment_ptr"] = y_pred.get("segment_ptr")
                         loss = loss_fn(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
                         if not rt_metric:
                             metrics.update(y_pred["fragment_probs"], batch[self.y_tag], **kwargs)
                         if rt_metric:
                             metrics(y_pred["rt"][batch["retention_mask"]], batch["retention_time"][batch["retention_mask"]], **kwargs) # call update
-                            metrics(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs) # call update                      
-
+                            metrics(y_pred["ccs"][batch["ccs_mask"]], batch["ccs"][batch["ccs_mask"]], **kwargs) # call update
+        
         # End of Validation cycle
         stats = metrics.compute()
         print(f'\t{title} RMSE: {torch.sqrt(stats["mse"]):>.4f}')
@@ -116,6 +121,7 @@ class SpectralTrainer(Trainer):
         
         # Set up checkpoint system and model info
         self._init_checkpoint_system(save_path=f"../../checkpoint_{tag}.best.pt")
+        self._init_history()
         model.model_params["training_label"] = self.y_tag
         
         # Stage data into dataloader
@@ -128,25 +134,34 @@ class SpectralTrainer(Trainer):
         for e in range(epochs):
             
             # Training
-            self._training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
+            train_stats = self._training_loop(model, training_loader, optimizer, loss_fn, self.metrics["train"], title=f'Epoch {e + 1}/{epochs}: ', with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric)
             
             # Validation
             is_val_cycle = not self.only_training and ((e + 1) % val_every_n_epochs == 0)
             if is_val_cycle:   
                 val_stats = self._validation_loop(model, validation_loader, loss_fn, self.metrics["masked_val"] if use_validation_mask else self.metrics["val"], with_weights=using_weighted_loss_func, with_RT=with_RT, with_CCS=with_CCS, rt_metric=rt_metric, mask_name=mask_name if use_validation_mask else None, title="Masked Validation" if use_validation_mask else "Validation")
-                
-                # Update checkpoint
-                if val_stats["mse"].tolist() < self.checkpoint_stats["val_loss"]:
-                    self._update_checkpoint({"epoch": e+1, "val_loss": val_stats["mse"].tolist()}, model)
-                    print(f"\t >> Set new checkpoint to epoch {e+1}")
-            
+
             # End of epoch: Advance scheduler
             if scheduler:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    last_lr = scheduler.get_last_lr()[0]
                     if is_val_cycle:
                         scheduler.step(torch.sqrt(val_stats["mse"]))
+                        if scheduler.get_last_lr()[0] < last_lr:
+                            print(f"\t >> Learning rate reduced from {last_lr:1.0e} to {scheduler.get_last_lr()[0]:1.0e}")
                 else:
                     scheduler.step()
+
+            
+
+            # Save history
+            if is_val_cycle:            
+                # Update checkpoint
+                if val_stats["mse"].tolist() < self.checkpoint_stats["val_loss"]:
+                    self._update_checkpoint({"epoch": e+1, "val_loss": val_stats["mse"].tolist(), "sqrt_val_loss": torch.sqrt(val_stats["mse"]).tolist()}, model)
+                    print(f"\t >> Set new checkpoint to epoch {e+1}")   
+                self._update_history(e+1, train_stats, val_stats, lr=scheduler.get_last_lr()[0])
+
                     
         print("Finished Training!")
         return self.checkpoint_stats

@@ -11,27 +11,27 @@ import importlib.resources
 import fiora.IO.mgfWriter as mgfWriter
 import fiora.IO.mspWriter as mspWriter
 
-from fiora.GNN.GNNModules import GNNCompiler
+from fiora.GNN.FioraModel import FioraModel
 from fiora.MS.SimulationFramework import SimulationFramework
 from fiora.MOL.Metabolite import Metabolite
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
 from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
-from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
+from fiora.GNN.CovariateFeatureEncoder import CovariateFeatureEncoder
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog='fiora-predict',
                     description='Fiora is an in silico fragmentation framework, which predicts peaks and simulates tandem mass spectra including features such as retention time and collision cross sections. Use this script for spectrum predictions with a (pre-)trained model.',
-                    epilog='Disclaimer:\nNo prediction software is perfect. This is an early prototype. Use with caution.')
-    parser.add_argument("-i", "--input", help="input file containing molecular structures (SMILES/InChi) and metadata (.csv file)", type=str, required=True)
-    parser.add_argument("-o", "--output", help="output file path (.mgf/.msp file)", type=str, required=True)
-    parser.add_argument("--model", help="path to prediction model (.pt file)", type=str, default="default")
+                    epilog='Disclaimer:\nNo prediction software is perfect. Use with caution.')
+    parser.add_argument("-i", "--input", help="Input file containing molecular structures (SMILES/InChi) and metadata (.csv file)", type=str, required=True)
+    parser.add_argument("-o", "--output", help="Output file path (.mgf/.msp file)", type=str, required=True)
+    parser.add_argument("--model", help="Path to prediction model (.pt file)", type=str, default="default")
     parser.add_argument("--dev", help="Device to the model. For example cuda:0 for GPU number 0.", type=str, default="cpu")
     parser.add_argument("--min_prob", help="Minimum peak probability to be recorded in the spectrum", type=float, default=0.001)
 
-    parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="predict retention time", default=False)
-    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="predict collison cross section", default=False)
-    parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="annotate predicted peaks with SMILES strings", default=False)
-    parser.add_argument("--debug", action=argparse.BooleanOptionalAction, help="receive debug information", default=False)
+    parser.add_argument('--rt', action=argparse.BooleanOptionalAction, help="Predict retention time", default=False)
+    parser.add_argument('--ccs', action=argparse.BooleanOptionalAction, help="Predict collison cross section", default=False)
+    parser.add_argument("--annotation", action=argparse.BooleanOptionalAction, help="Annotate predicted peaks with SMILES strings", default=False)
+    parser.add_argument("--debug", action=argparse.BooleanOptionalAction, help="Receive debug information", default=False)
     args = parser.parse_args()
 
     return args
@@ -50,7 +50,7 @@ def update_args_with_model_params(args: argparse.Namespace, model_params: dict) 
 
 def print_model_messages(model_params: dict) -> None:
     if "version" in model_params.keys():
-        print(f"-----Model-----")
+        print(f"\n-----Model-----")
         print(model_params["version"])
         print(f"---------------")
     if "disclaimer" in model_params.keys():
@@ -82,8 +82,12 @@ def build_metabolites(df: pd.DataFrame, model_params: dict):
 
     node_encoder = AtomFeatureEncoder(feature_list=["symbol", "num_hydrogen", "ring_type"])
     bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
-    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
-    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
+    if model_params["version_number"] == "0.1.0":
+        covariate_features = ["collision_energy", "molecular_weight", "precursor_mode", "instrument"]
+    else:
+        covariate_features =["collision_energy", "molecular_weight", "precursor_mode", "instrument", "element_composition"]
+    setup_encoder = CovariateFeatureEncoder(feature_list=covariate_features, sets_overwrite=model_setup_feature_sets)
+    rt_encoder = CovariateFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
 
     setup_encoder.normalize_features["collision_energy"]["max"] = CE_upper_limit 
     setup_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit 
@@ -113,10 +117,12 @@ def prepare_output(args, df, model):
     df["Precursor_MZ"] = df["Metabolite"].apply(lambda x: x.get_theoretical_precursor_mz(ion_type=x.metadata["precursor_mode"]))
     
     # Rename certain columns
-    df["RETENTIONTIME"] = df["RT_pred"]
+    if "RT_pred" in df.columns:
+        df["RETENTIONTIME"] = df["RT_pred"]
     df["PRECURSOR_MZ"] = df["Precursor_MZ"]
     df["FORMULA"] = df["Formula"]
-    df["CCS"] = df["CCS_pred"] 
+    if "CCS_pred" in df.columns:
+        df["CCS"] = df["CCS_pred"] 
     version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
     df["Comment"] = f"\"In silico generated spectrum by {version}\""
     df["COMMENT"] = df["Comment"]
@@ -152,11 +158,11 @@ def main():
 
     # Load model
     if args.model == "default":
-        with importlib.resources.path('models', 'fiora_OS_v0.1.0.pt') as model_path:
+        with importlib.resources.path('models', 'fiora_OS_v1.0.0.pt') as model_path:
             args.model = str(model_path)
     
     try:
-        model = GNNCompiler.load_from_state_dict(args.model)
+        model = FioraModel.load_from_state_dict(args.model)
     except Exception as e:
         print(f"Error: Failed loading from model from state dict. Caused by: {e}.")
         exit(1)
@@ -169,7 +175,7 @@ def main():
     model = model.to(args.dev)
 
     # Set up Fiora
-    fiora = SimulationFramework(None, dev=args.dev, with_RT=True, with_CCS=True)
+    fiora = SimulationFramework(None, dev=args.dev)
 
     # Load the data
     df = pd.read_csv(args.input)
@@ -188,7 +194,7 @@ def main():
     
     # Prepare Output
     prepare_output(args, df, model)
-    print("Finished prediction.")
+    print(f"Finished prediction. Exported MS/MS spectra to {args.output}.")
 
 
 if __name__ == "__main__":

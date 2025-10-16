@@ -1,6 +1,6 @@
 # **FIORA**
 
-Meet FIORA! An in silico fragmentation algorithm designed to predict tandem mass spectra (MS/MS) with high accuracy. Using a graph neural network, FIORA models bond cleavages, fragment intensities, and estimates retention times (RT) and collision cross sections (CCS).
+Meet FIORA! An in silico fragmentation algorithm designed to predict tandem mass spectra (MS/MS) with high accuracy. Using a graph neural network, FIORA models bond cleavages, fragment intensities, and estimates retention times (RT) and collision cross sections (CCS). Also available on our [online prediction platform](https://apps.bam.de/shn01/fioRa/).
 
 > Nowatzky, Y., Russo, F.F., Lisec, J. et al. FIORA: Local neighborhood-based prediction of compound mass spectra from single fragmentation events. Nat Commun 16, 2298 (2025). https://doi.org/10.1038/s41467-025-57422-4
 

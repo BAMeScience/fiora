@@ -7,15 +7,14 @@ import matplotlib.pyplot as plt
 from fiora.MOL.Metabolite import Metabolite
 from fiora.MS.spectral_scores import *
 import fiora.visualization.spectrum_visualizer as sv
+from fiora.MOL.constants import DEFAULT_MODE_MAP
 
 class SimulationFramework:
     
-    def __init__(self, base_model: torch.nn.Module|None=None, with_RT=False, with_CCS=False, dev: str="cpu"):
+    def __init__(self, base_model: torch.nn.Module|None=None, dev: str="cpu"):
         self.base_model = base_model
         self.dev = dev
-        self.mode_mapper = None
-        self.with_RT = with_RT
-        self.with_CCS = with_CCS
+        self.mode_map = None
 
     def __repr__(self):
         return f"Simulation framework for MS/MS spectrum generation"
@@ -23,8 +22,8 @@ class SimulationFramework:
     def __str__(self):
         return f"Simulation framework for MS/MS spectrum generation"
 
-    def set_mode_mapper(self, mode_mapper):
-        self.mode_mapper = mode_mapper
+    def set_mode_mapper(self, mode_map):
+        self.mode_map = mode_map
 
     def predict_metabolite_property(self, metabolite, model: torch.nn.Module|None=None, as_batch: bool=False):
         if not model:
@@ -33,7 +32,7 @@ class SimulationFramework:
         if as_batch:
             data = geom.data.Batch.from_data_list([data])
         
-        logits = model(data, with_RT=self.with_RT, with_CCS=self.with_CCS)
+        logits = model(data, with_RT=hasattr(model, "rt_module"), with_CCS=hasattr(model, "ccs_module"))
         return logits
     
     def pred_all(self, df: pd.DataFrame, model: torch.nn.Module|None=None, attr_name: str="", as_batch: bool=True):
@@ -43,7 +42,7 @@ class SimulationFramework:
             for i,d in df.iterrows():
                 metabolite = d["Metabolite"]
                 prediction = self.predict_metabolite_property(metabolite, model=model, as_batch=as_batch)
-                if self.with_RT:
+                if hasattr(model, "rt_module"):
                     setattr(metabolite, attr_name + "_pred", prediction["fragment_probs"])
                     setattr(metabolite, "RT_pred", prediction["rt"].squeeze())
                 else:
@@ -53,10 +52,10 @@ class SimulationFramework:
     
     def simulate_spectrum(self, metabolite: Metabolite, pred_label: str, precursor_mode: Literal["[M+H]+", "[M-H]-"]="[M+H]+", min_intensity: float=0.001, merge_fragment_duplicates: bool=True, transform_prob: str="None"):
 
-        if not self.mode_mapper:
-            mode_mapper = metabolite.mode_mapper
+        if not self.mode_map:
+            mode_map = DEFAULT_MODE_MAP
         else:
-            mode_mapper = self.mode_mapper
+            mode_map = self.mode_map
     
         edge_map = metabolite.fragmentation_tree.edge_map
         
@@ -70,7 +69,7 @@ class SimulationFramework:
         sim_peaks["intensity"].append(precursor_prob)
         sim_peaks["annotation"].append(precursor.smiles + "//" + precursor_mode)
 
-        edge_probs = sim_probs[:-2].unflatten(-1, sizes=(-1, len(mode_mapper)*2))
+        edge_probs = sim_probs[:-2].unflatten(-1, sizes=(-1, len(mode_map)*2))
 
         for i, edge in enumerate(metabolite.edges_as_tuples):
             if edge[0] > edge[1]: continue # skip backward directions
@@ -79,7 +78,7 @@ class SimulationFramework:
             
             lf = frags.get('left')
             if lf:
-                for mode, idx in mode_mapper.items():
+                for mode, idx in mode_map.items():
                     intensity = edge_probs[i,idx].tolist()
                     if intensity > min_intensity:
                         mz =lf.mz[mode]
@@ -98,8 +97,8 @@ class SimulationFramework:
                         sim_peaks["annotation"].append(annotation)
             rf = frags.get('right')
             if rf:
-                for mode, idx in mode_mapper.items():
-                    idx = (idx + len(mode_mapper)) % (2*len(mode_mapper))
+                for mode, idx in mode_map.items():
+                    idx = (idx + len(mode_map)) % (2*len(mode_map))
                     intensity = edge_probs[i,idx].tolist()
 
                     if intensity > min_intensity:
@@ -122,6 +121,17 @@ class SimulationFramework:
             max_prob = max(sim_peaks["intensity"])**2
             for i in range(len(sim_peaks["intensity"])):
                 sim_peaks["intensity"][i] == sim_peaks["intensity"][i]**2 / max_prob
+        
+        
+        combined = sorted(
+                zip(sim_peaks["mz"], sim_peaks["intensity"], sim_peaks["annotation"]),
+                key=lambda t: t[0],
+                reverse=True,
+        )
+        mz, inten, annot = zip(*combined)
+        sim_peaks["mz"] = list(mz)
+        sim_peaks["intensity"] = list(inten)
+        sim_peaks["annotation"] = list(annot)
                 
         return sim_peaks
     
@@ -131,9 +141,9 @@ class SimulationFramework:
         prediction = self.predict_metabolite_property(metabolite, model=model, as_batch=as_batch)
         stats = {}
 
-        if self.with_RT:
+        if "rt" in prediction.keys():
             stats["RT_pred"] = prediction["rt"].squeeze().tolist()
-        if self.with_CCS:
+        if "ccs" in prediction.keys():
             stats["CCS_pred"] = prediction["ccs"].squeeze().tolist()
             
         setattr(metabolite, base_attr_name + "_pred", prediction["fragment_probs"])
@@ -148,7 +158,7 @@ class SimulationFramework:
             stats["cosine_similarity"] = torch.nn.functional.cosine_similarity(prediction["fragment_probs"], groundtruth, dim=0).tolist() # TODO
             stats["kl_div"] = torch.nn.functional.kl_div(torch.log(prediction["fragment_probs"]), groundtruth, reduction='sum').tolist()
             
-        if self.with_RT and "retention_time" in metabolite.metadata.keys():
+        if "RT_pred" in stats.keys() and "retention_time" in metabolite.metadata.keys():
             stats["RT_dif"] = abs(stats["RT_pred"] - metabolite.metadata["retention_time"])
         
         if query_peaks:
