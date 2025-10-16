@@ -29,6 +29,6 @@ setup(
             'fiora_OS_v1.0.0_params.json',
         ],
     },
-    install_requires=['numpy', 'seaborn', 'torch', 'torch_geometric', 'dill', 'rdkit', 'treelib', 'spectrum_utils', 'ipython>=8'],
+    install_requires=['numpy', 'seaborn', 'torch', 'torch_geometric>=2.6,<2.7', 'dill', 'rdkit', 'treelib', 'spectrum_utils', 'ipython>=8'],
     python_requires='>=3.10.8',
 )
