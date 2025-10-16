@@ -11,12 +11,12 @@ import importlib.resources
 import fiora.IO.mgfWriter as mgfWriter
 import fiora.IO.mspWriter as mspWriter
 
-from fiora.GNN.GNNModules import GNNCompiler
+from fiora.GNN.FioraModel import FioraModel
 from fiora.MS.SimulationFramework import SimulationFramework
 from fiora.MOL.Metabolite import Metabolite
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
 from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
-from fiora.GNN.SetupFeatureEncoder import SetupFeatureEncoder
+from fiora.GNN.CovariateFeatureEncoder import CovariateFeatureEncoder
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog='fiora-predict',
@@ -82,8 +82,8 @@ def build_metabolites(df: pd.DataFrame, model_params: dict):
 
     node_encoder = AtomFeatureEncoder(feature_list=["symbol", "num_hydrogen", "ring_type"])
     bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
-    setup_encoder = SetupFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
-    rt_encoder = SetupFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
+    setup_encoder = CovariateFeatureEncoder(feature_list=["collision_energy", "molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
+    rt_encoder = CovariateFeatureEncoder(feature_list=["molecular_weight", "precursor_mode", "instrument"], sets_overwrite=model_setup_feature_sets)
 
     setup_encoder.normalize_features["collision_energy"]["max"] = CE_upper_limit 
     setup_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit 
@@ -113,10 +113,12 @@ def prepare_output(args, df, model):
     df["Precursor_MZ"] = df["Metabolite"].apply(lambda x: x.get_theoretical_precursor_mz(ion_type=x.metadata["precursor_mode"]))
     
     # Rename certain columns
-    df["RETENTIONTIME"] = df["RT_pred"]
+    if "RT_pred" in df.columns:
+        df["RETENTIONTIME"] = df["RT_pred"]
     df["PRECURSOR_MZ"] = df["Precursor_MZ"]
     df["FORMULA"] = df["Formula"]
-    df["CCS"] = df["CCS_pred"] 
+    if "CCS_pred" in df.columns:
+        df["CCS"] = df["CCS_pred"] 
     version = model.model_params["version"] if "version" in model.model_params else "(pre-release version v0.0.0)"
     df["Comment"] = f"\"In silico generated spectrum by {version}\""
     df["COMMENT"] = df["Comment"]
@@ -156,7 +158,7 @@ def main():
             args.model = str(model_path)
     
     try:
-        model = GNNCompiler.load_from_state_dict(args.model)
+        model = FioraModel.load_from_state_dict(args.model)
     except Exception as e:
         print(f"Error: Failed loading from model from state dict. Caused by: {e}.")
         exit(1)
@@ -169,7 +171,7 @@ def main():
     model = model.to(args.dev)
 
     # Set up Fiora
-    fiora = SimulationFramework(None, dev=args.dev, with_RT=True, with_CCS=True)
+    fiora = SimulationFramework(None, dev=args.dev)
 
     # Load the data
     df = pd.read_csv(args.input)
