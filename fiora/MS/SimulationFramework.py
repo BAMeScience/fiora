@@ -121,6 +121,17 @@ class SimulationFramework:
             max_prob = max(sim_peaks["intensity"])**2
             for i in range(len(sim_peaks["intensity"])):
                 sim_peaks["intensity"][i] == sim_peaks["intensity"][i]**2 / max_prob
+        
+        
+        combined = sorted(
+                zip(sim_peaks["mz"], sim_peaks["intensity"], sim_peaks["annotation"]),
+                key=lambda t: t[0],
+                reverse=True,
+        )
+        mz, inten, annot = zip(*combined)
+        sim_peaks["mz"] = list(mz)
+        sim_peaks["intensity"] = list(inten)
+        sim_peaks["annotation"] = list(annot)
                 
         return sim_peaks
     
