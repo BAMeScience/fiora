@@ -49,6 +49,10 @@ Change into the project directory (`cd fiora`). Then, install the package by usi
 
     pytest -v tests
 
+(Optional) Reproducible install using pinned dependencies (constraints) to match the exact packages and versions FIORA was developed with:
+
+    pip install . -c requirements.txt
+
 ## Usage
 
 ### MS/MS prediction
