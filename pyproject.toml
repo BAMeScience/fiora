@@ -1,3 +1,45 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "fiora"
+version = "1.0.1"
+description = "In silico fragmentation and MS/MS simulation"
+readme = "README.md"
+authors = [{ name = "Yannek Nowatzky" }]
+license = { text = "MIT" }
+requires-python = ">=3.10.8"
+classifiers = [
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+]
+dependencies = [
+  "numpy",
+  "seaborn",
+  "torch",
+  "torch_geometric>=2.6,<2.7",
+  "dill",
+  "rdkit",
+  "treelib",
+  "spectrum_utils",
+  "ipython>=8",
+]
+
+[tool.setuptools]
+include-package-data = true
+script-files = ["scripts/fiora-predict"]  # like setup.py `scripts=[...]` (not console entry points)
+
+[tool.setuptools.packages.find]
+include = ["fiora", "fiora.*", "models"]
+
+[tool.setuptools.package-data]
+models = [
+  "fiora_OS_v0.1.0.pt",
+  "fiora_OS_v0.1.0_state.pt",
+  "fiora_OS_v0.1.0_params.json",
+  "fiora_OS_v1.0.0.pt",
+  "fiora_OS_v1.0.0_state.pt",
+  "fiora_OS_v1.0.0_params.json",
+]
