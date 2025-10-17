@@ -41,17 +41,17 @@ Clone the project folder
     conda create -n fiora python=3.10.8
     conda activate fiora
 
-Change into the project directory (`cd fiora`). Then, install the package by using the setup.py via
+Change into the project directory (`cd fiora`). Then, install the package (optionally using constraints.txt)
 
-    pip install .
+    pip install . -c constraints.txt
 
 (Optional) You may want to test that the package works as intended. This can be done by running the sripts in the *tests* directory or by using pytest (requires: `pip install pytest`)
 
     pytest -v tests
 
-(Optional) Reproducible install using pinned dependencies (constraints) to match the exact packages and versions FIORA was developed with:
+(Optional) Reproduce complete environment FIORA was developed with:
 
-    pip install . -c requirements.txt
+    pip install -r requirements.txt -c constraints.txt
 
 ## Usage
 
