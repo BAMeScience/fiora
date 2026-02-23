@@ -17,9 +17,11 @@ classifiers = [
 ]
 dependencies = [
   "numpy",
+  "pandas",
   "seaborn",
   "torch",
   "torch_geometric>=2.6,<2.7",
+  "torchmetrics",
   "dill",
   "rdkit",
   "treelib",
@@ -27,9 +29,13 @@ dependencies = [
   "ipython>=8",
 ]
 
+[project.scripts]
+fiora-predict = "fiora.cli.predict:main"
+fiora-train = "fiora.cli.train:main"
+
 [tool.setuptools]
 include-package-data = true
-script-files = ["scripts/fiora-predict"]  # like setup.py `scripts=[...]` (not console entry points)
+script-files = ["scripts/fiora-predict", "scripts/fiora-train"]  # like setup.py `scripts=[...]` (not console entry points)
 
 [tool.setuptools.packages.find]
 include = ["fiora", "fiora.*", "models"]

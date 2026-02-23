@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from fiora.cli.predict import main
+from fiora.cli.train import main
 
 
 if __name__ == "__main__":
