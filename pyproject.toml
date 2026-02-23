@@ -27,6 +27,7 @@ dependencies = [
   "treelib",
   "spectrum_utils",
   "ipython>=8",
+  "scikit-learn",
 ]
 
 [project.scripts]
