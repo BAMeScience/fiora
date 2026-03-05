@@ -316,7 +316,7 @@ def main() -> None:
     # Load model
     if args.model == "default":
         with resources.as_file(
-            resources.files("models").joinpath("fiora_OS_v1.0.0.pt")
+            resources.files("fiora.resources.models").joinpath("fiora_OS_v1.0.0.pt")
         ) as model_path:
             args.model = str(model_path)
 

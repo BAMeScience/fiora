@@ -80,6 +80,39 @@ Run the fiora-predict from within this directory
 
 By default, an open-source model is selected automatically, and predictions typically complete within a few seconds. For faster performance, specify a GPU device using the `--dev` option (e.g., `--dev cuda:0`). The output file (e.g., examples/example_spec.mgf) can be compared with the [expected results](examples/expected_output.mgf) to verify model accuracy. This verification is automatically performed by running pytest (as described above).
 
+### Models and Resources
+
+Default model checkpoints are packaged under `fiora/resources/models` (Python package: `fiora.resources.models`). The CLI uses these automatically when `--model default` is selected.
+
+Scripts for downloading and preprocessing MSnLib are provided in `resources/data/msnlib` (`download_msnlib.py` and `preprocess_msnlib.py`).
+
+The downloader defaults to MSnLib v7 on Zenodo (`https://zenodo.org/records/16984129`) and accepts both direct file URLs and Zenodo record URLs. For Zenodo record URLs it downloads all files matching `*_ms2.mgf` by default.
+
+```bash
+python resources/data/msnlib/download_msnlib.py
+python resources/data/msnlib/preprocess_msnlib.py
+```
+
+Use `--record-pattern` to select a different subset, e.g. `--record-pattern "*_pos_*.mgf"`.
+
+### MSnLib Training Parity (Notebook vs CLI)
+
+The training notebooks override categorical feature sets for MSnLib:
+
+- `instrument`: `["HCD"]`
+- `precursor_mode`: `["[M+H]+", "[M-H]-", "[M]+", "[M]-"]`
+
+To match notebook training results when using `fiora-train`, pass the same overrides:
+
+```bash
+fiora-train \
+  -i resources/data/msnlib/library.csv \
+  -o checkpoints/fiora.pt \
+  --device cuda:0 \
+  --instruments HCD \
+  --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-"
+```
+
 ## The Algorithm
 
 FIORA has been developed as a computational tool to predict bond cleavages that occur in the MS/MS fragmentation process and estimate the probabilities of resulting fragment ions. To that end, FIORA utilizes graph neural networks to learn local molecular neighborhoods around bonds, combined with edge prediction to simulate bond dissociation. The prediction determines which fragment (left or right of the bond cleavage, with up to four possible hydrogen losses) retains the charge and which becomes the neutral loss. The figure below illustrates an example fragmentation prediction for a single bond.

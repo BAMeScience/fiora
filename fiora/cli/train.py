@@ -3,6 +3,7 @@ import argparse
 import ast
 import json
 import os
+import re
 import warnings
 
 import numpy as np
@@ -180,9 +181,21 @@ def _parse_dict(val):
         return val
     if val is None or (isinstance(val, float) and np.isnan(val)):
         return None
-    text = str(val)
+    text = str(val).strip()
+    if not text:
+        return None
     try:
-        return ast.literal_eval(text.replace("nan", "None"))
+        # Handles canonical JSON and JSON with NaN/Infinity tokens.
+        return json.loads(text)
+    except Exception:
+        pass
+    # Fallback for python-literal style dict strings.
+    norm = re.sub(r"\b(?:NaN|nan)\b", "None", text)
+    norm = re.sub(r"\b(?:Infinity|inf)\b", "1e309", norm)
+    norm = re.sub(r"\b(?:-Infinity|-inf)\b", "-1e309", norm)
+    try:
+        parsed = ast.literal_eval(norm)
+        return parsed if isinstance(parsed, dict) else None
     except Exception:
         return None
 
@@ -203,11 +216,17 @@ def _safe_metabolite(smiles: str):
 
 def _build_summary_from_columns(row, metadata_key_map):
     summary = {}
-    for key, col in metadata_key_map.items():
-        if col in row.index:
-            value = row[col]
-            if value is not None and not (isinstance(value, float) and np.isnan(value)):
-                summary[key] = value
+    for key, cols in metadata_key_map.items():
+        if not isinstance(cols, (list, tuple)):
+            cols = [cols]
+        for col in cols:
+            if col in row.index:
+                value = row[col]
+                if value is not None and not (
+                    isinstance(value, float) and np.isnan(value)
+                ):
+                    summary[key] = value
+                    break
     return summary
 
 
@@ -299,13 +318,13 @@ def main() -> None:
     rt_encoder.normalize_features["molecular_weight"]["max"] = args.weight_upper_limit
 
     metadata_key_map = {
-        "name": "Name",
-        "collision_energy": "CE",
-        "instrument": "Instrument_type",
-        "precursor_mode": "Precursor_type",
-        "precursor_mz": "PrecursorMZ",
-        "retention_time": "RETENTIONTIME",
-        "ccs": "CCS",
+        "name": ["Name", "NAME", "Title", "TITLE"],
+        "collision_energy": ["CE", "COLLISION_ENERGY", "CollisionEnergy"],
+        "instrument": ["Instrument_type", "instrument", "INSTRUMENT_TYPE"],
+        "precursor_mode": ["Precursor_type", "ADDUCT", "PRECURSORTYPE"],
+        "precursor_mz": ["PrecursorMZ", "PEPMASS", "PRECURSORMZ"],
+        "retention_time": ["RETENTIONTIME", "RTINSECONDS", "retention_time"],
+        "ccs": ["CCS", "ccs"],
     }
 
     # Build metabolites
@@ -441,8 +460,30 @@ def main() -> None:
     print(f"Prepared training/validation with {len(geo_data)} data points")
 
     # Model params
+    default_params = {
+        "param_tag": "default",
+        "gnn_type": "RGCNConv",
+        "depth": 10,
+        "hidden_dimension": 300,
+        "residual_connections": False,
+        "layer_stacking": True,
+        "embedding_aggregation": "concat",
+        "embedding_dimension": 300,
+        "subgraph_features": True,
+        "pooling_func": "max",
+        "layer_norm": True,
+        "dense_layers": 2,
+        "dense_dim": 500,
+        "input_dropout": 0.25,
+        "latent_dropout": 0.25,
+        "prepare_additional_layers": False,
+        "rt_supported": False,
+        "ccs_supported": False,
+        "version": "x.x.x",
+    }
     base_params = _load_model_params(args.model_params)
-    model_params = dict(base_params)
+    model_params = dict(default_params)
+    model_params.update(base_params)
     model_params.update(
         {
             "node_feature_layout": node_encoder.feature_numbers,
@@ -509,7 +550,6 @@ def main() -> None:
             patience=args.scheduler_patience,
             factor=args.scheduler_factor,
             mode="min",
-            verbose=True,
         )
 
     output_path = args.output

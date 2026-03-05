@@ -15,6 +15,8 @@ from fiora.GNN.Losses import WeightedMSELoss, WeightedMAELoss
 GNN Trainer
 """
 
+TQDM_DATA_THRESHOLD = 10000
+
 
 class SpectralTrainer(Trainer):
     def __init__(
@@ -65,6 +67,38 @@ class SpectralTrainer(Trainer):
             geom_loader.DataLoader if library == "geometric" else DataLoader
         )
 
+    @staticmethod
+    def _to_float(value):
+        if isinstance(value, torch.Tensor):
+            return float(value.detach().cpu().item())
+        return float(value)
+
+    @staticmethod
+    def _build_progress_iterator(dataloader, enabled=False, desc=""):
+        if not enabled:
+            return dataloader
+        try:
+            from tqdm.auto import tqdm
+
+            return tqdm(dataloader, total=len(dataloader), desc=desc, leave=False)
+        except Exception:
+            return dataloader
+
+    @staticmethod
+    def _format_metric(stats):
+        if "mse" in stats:
+            rmse = torch.sqrt(stats["mse"])
+            return "rmse", float(rmse.detach().cpu().item())
+        if "mae" in stats:
+            return "mae", float(stats["mae"].detach().cpu().item())
+        if "acc" in stats:
+            return "acc", float(stats["acc"].detach().cpu().item())
+        key = next(iter(stats.keys()))
+        val = stats[key]
+        if isinstance(val, torch.Tensor):
+            val = float(val.detach().cpu().item())
+        return key, float(val)
+
     def _training_loop(
         self,
         model,
@@ -76,12 +110,17 @@ class SpectralTrainer(Trainer):
         with_RT=False,
         with_CCS=False,
         rt_metric=False,
-        title="",
+        show_progress=False,
+        progress_desc="Train",
     ):
         training_loss = 0
         metrics.increment()
+        num_batches = 0
 
-        for id, batch in enumerate(dataloader):
+        iterator = self._build_progress_iterator(
+            dataloader, enabled=show_progress, desc=progress_desc
+        )
+        for _, batch in enumerate(iterator):
             # Feed forward
             model.train()
 
@@ -138,21 +177,13 @@ class SpectralTrainer(Trainer):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            training_loss += self._to_float(loss)
+            num_batches += 1
 
         # End of training cycle: Evaluation
         stats = metrics.compute()
-        training_loss /= len(dataloader)
-
-        if self.problem_type == "classification":
-            print(
-                f"{title} Training Accuracy: {stats['acc']:>.3f} (Loss per batch: {'NOT TRACKED'})",
-                end="\r",
-            )
-        else:
-            print(
-                f"{title} RMSE: {torch.sqrt(stats['mse']):>.4f}", end="\r"
-            )  # MSE: {stats["mse"]:>.3f};  MAE: {stats["mae"]:>.3f}
-        return stats
+        training_loss /= max(num_batches, 1)
+        return stats, training_loss
 
     def _validation_loop(
         self,
@@ -165,11 +196,17 @@ class SpectralTrainer(Trainer):
         with_CCS=False,
         rt_metric=False,
         mask_name=None,
-        title="Validation",
+        show_progress=False,
+        progress_desc="Validation",
     ):
         metrics.increment()
+        validation_loss = 0
+        num_batches = 0
         with torch.no_grad():
-            for id, batch in enumerate(dataloader):
+            iterator = self._build_progress_iterator(
+                dataloader, enabled=show_progress, desc=progress_desc
+            )
+            for _, batch in enumerate(iterator):
                 model.eval()
                 y_pred = model(batch, with_RT=with_RT, with_CCS=with_CCS)
                 if mask_name:
@@ -187,6 +224,11 @@ class SpectralTrainer(Trainer):
                         metrics.update(
                             y_pred["fragment_probs"], batch[self.y_tag], **kwargs
                         )
+                        batch_loss = loss_fn(
+                            y_pred["fragment_probs"], batch[self.y_tag], **kwargs
+                        )
+                        validation_loss += self._to_float(batch_loss)
+                        num_batches += 1
                     if rt_metric:
                         metrics(
                             y_pred["rt"][batch["retention_mask"]],
@@ -201,8 +243,11 @@ class SpectralTrainer(Trainer):
 
         # End of Validation cycle
         stats = metrics.compute()
-        print(f"\t{title} RMSE: {torch.sqrt(stats['mse']):>.4f}")
-        return stats
+        if num_batches > 0:
+            validation_loss /= num_batches
+        else:
+            validation_loss = float("nan")
+        return stats, validation_loss
 
     # Training function
     def train(
@@ -247,21 +292,26 @@ class SpectralTrainer(Trainer):
         using_weighted_loss_func = isinstance(loss_fn, WeightedMSELoss) | isinstance(
             loss_fn, WeightedMAELoss
         )
+        show_train_progress = len(self.training_data) > TQDM_DATA_THRESHOLD
+        show_val_progress = (
+            (not self.only_training) and (len(self.validation_data) > TQDM_DATA_THRESHOLD)
+        )
 
         # Main loop
         for e in range(epochs):
             # Training
-            train_stats = self._training_loop(
+            train_stats, train_loss = self._training_loop(
                 model,
                 training_loader,
                 optimizer,
                 loss_fn,
                 self.metrics["train"],
-                title=f"Epoch {e + 1}/{epochs}: ",
                 with_weights=using_weighted_loss_func,
                 with_RT=with_RT,
                 with_CCS=with_CCS,
                 rt_metric=rt_metric,
+                show_progress=show_train_progress,
+                progress_desc=f"Train {e + 1}/{epochs}",
             )
 
             # Validation
@@ -269,7 +319,7 @@ class SpectralTrainer(Trainer):
                 (e + 1) % val_every_n_epochs == 0
             )
             if is_val_cycle:
-                val_stats = self._validation_loop(
+                val_stats, val_loss = self._validation_loop(
                     model,
                     validation_loader,
                     loss_fn,
@@ -281,8 +331,25 @@ class SpectralTrainer(Trainer):
                     with_CCS=with_CCS,
                     rt_metric=rt_metric,
                     mask_name=mask_name if use_validation_mask else None,
-                    title="Masked Validation" if use_validation_mask else "Validation",
+                    show_progress=show_val_progress,
+                    progress_desc=f"Val {e + 1}/{epochs}",
                 )
+            else:
+                val_stats, val_loss = None, float("nan")
+
+            train_metric_name, train_metric_value = self._format_metric(train_stats)
+            if val_stats is not None:
+                val_metric_name, val_metric_value = self._format_metric(val_stats)
+                val_metric_str = f"val_{val_metric_name}: {val_metric_value:.4f}"
+            else:
+                val_metric_str = "val_metric: n/a"
+            val_loss_str = f"{val_loss:.4f}" if not np.isnan(val_loss) else "n/a"
+            print(
+                f"Epoch {e + 1}/{epochs} - loss: {train_loss:.4f} - "
+                f"val_loss: {val_loss_str} - "
+                f"train_{train_metric_name}: {train_metric_value:.4f} - "
+                f"{val_metric_str}"
+            )
 
             # End of epoch: Advance scheduler
             if scheduler:
