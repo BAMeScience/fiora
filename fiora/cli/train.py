@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 import torch
 from rdkit import RDLogger
+from sklearn.model_selection import train_test_split
 
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
 from fiora.GNN.BondFeatureEncoder import BondFeatureEncoder
 from fiora.GNN.CovariateFeatureEncoder import CovariateFeatureEncoder
 from fiora.GNN.FioraModel import FioraModel
+from fiora.GNN.fabric_training import seed_everything, train_fabric_loop
 from fiora.GNN.Losses import (
     GraphwiseKLLoss,
     GraphwiseKLLossMetric,
@@ -23,7 +25,6 @@ from fiora.GNN.Losses import (
     WeightedMSELoss,
     WeightedMSEMetric,
 )
-from fiora.GNN.SpectralTrainer import SpectralTrainer
 from fiora.IO.LibraryLoader import LibraryLoader
 from fiora.MOL.Metabolite import Metabolite
 from fiora.MOL.MetaboliteIndex import MetaboliteIndex
@@ -173,6 +174,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable index_col when reading CSV.",
     )
+    parser.add_argument(
+        "--history-out",
+        default=None,
+        help="Optional path to save training history (.json or .csv).",
+    )
     return parser.parse_args()
 
 
@@ -255,10 +261,60 @@ def _choose_loss(loss_name: str):
     raise ValueError(f"Unknown loss: {loss_name}")
 
 
+def _save_history(history: dict, output_path: str) -> None:
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    if output_path.lower().endswith(".csv"):
+        pd.DataFrame(history).to_csv(output_path, index=False)
+    else:
+        with open(output_path, "w") as fp:
+            json.dump(history, fp, indent=2)
+
+
+def _split_geo_data(
+    geo_data,
+    split_by_group: bool,
+    train_val_split: float,
+    seed: int,
+    train_keys: list[int] | None = None,
+    val_keys: list[int] | None = None,
+):
+    train_keys = train_keys or []
+    val_keys = val_keys or []
+    if len(geo_data) == 0:
+        return [], []
+
+    if split_by_group and hasattr(geo_data[0], "group_id"):
+        group_ids = np.array([int(getattr(x, "group_id")) for x in geo_data])
+        keys = np.unique(group_ids)
+        if len(train_keys) > 0 and len(val_keys) > 0:
+            train_set = set(int(x) for x in train_keys)
+            val_set = set(int(x) for x in val_keys)
+            print("Using pre-set train/validation keys")
+        else:
+            tr, va = train_test_split(
+                keys, test_size=1 - train_val_split, random_state=seed
+            )
+            train_set = set(int(x) for x in tr)
+            val_set = set(int(x) for x in va)
+        train_data = [x for x in geo_data if int(getattr(x, "group_id")) in train_set]
+        val_data = [x for x in geo_data if int(getattr(x, "group_id")) in val_set]
+        return train_data, val_data
+
+    train_size = int(len(geo_data) * train_val_split)
+    rng = np.random.default_rng(seed)
+    indices = np.arange(len(geo_data))
+    rng.shuffle(indices)
+    train_idx = set(indices[:train_size].tolist())
+    train_data = [geo_data[i] for i in range(len(geo_data)) if i in train_idx]
+    val_data = [geo_data[i] for i in range(len(geo_data)) if i not in train_idx]
+    return train_data, val_data
+
+
 def main() -> None:
     args = parse_args()
     dev = _resolve_device(args.device)
     np.seterr(invalid="ignore")
+    seed_everything(args.seed)
 
     index_col = None if args.no_index_col else args.index_col
     loader = LibraryLoader()
@@ -328,7 +384,6 @@ def main() -> None:
     }
 
     # Build metabolites
-    metabolites = []
     invalid_rows = []
     for idx, row in df.iterrows():
         smiles = row.get(args.smiles_col)
@@ -368,7 +423,6 @@ def main() -> None:
         else:
             mol.set_loss_weight(1.0)
 
-        metabolites.append(mol)
         df.at[idx, "Metabolite"] = mol
 
     if invalid_rows:
@@ -450,7 +504,7 @@ def main() -> None:
     # Geometric data
     geo_data = []
     for _, row in df_train.iterrows():
-        data = row["Metabolite"].as_geometric_data().to(dev)
+        data = row["Metabolite"].as_geometric_data()
         if args.group_id_col in df_train.columns:
             try:
                 data.group_id = int(row[args.group_id_col])
@@ -506,11 +560,11 @@ def main() -> None:
         state_path = args.resume.replace(".pt", "_state.pt")
         params_path = args.resume.replace(".pt", "_params.json")
         if os.path.exists(state_path) and os.path.exists(params_path):
-            model = FioraModel.load_from_state_dict(args.resume).to(dev)
+            model = FioraModel.load_from_state_dict(args.resume)
         else:
-            model = FioraModel.load(args.resume).to(dev)
+            model = FioraModel.load(args.resume)
     else:
-        model = FioraModel(model_params).to(dev)
+        model = FioraModel(model_params)
 
     if (args.with_rt or args.with_ccs) and not model.model_params.get(
         "prepare_additional_layers", False
@@ -522,56 +576,47 @@ def main() -> None:
     loss_fn, metric_dict = _choose_loss(args.loss)
 
     split_by_group = args.split_by_group and args.group_id_col in df_train.columns
-    only_training = len(val_keys) == 0 and not args.use_validation_mask
-
-    trainer = SpectralTrainer(
+    train_data, val_data = _split_geo_data(
         geo_data,
-        y_tag=args.y_label,
-        problem_type="regression",
-        train_val_split=args.train_val_split,
         split_by_group=split_by_group,
-        only_training=only_training,
+        train_val_split=args.train_val_split,
+        seed=args.seed,
         train_keys=train_keys,
         val_keys=val_keys,
-        metric_dict=metric_dict,
-        seed=args.seed,
-        device=dev,
-        num_workers=args.num_workers,
     )
-
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
-    )
-
-    scheduler = None
-    if args.scheduler == "plateau":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            patience=args.scheduler_patience,
-            factor=args.scheduler_factor,
-            mode="min",
-        )
+    has_validation = len(val_data) > 0
+    print(f"Train/validation split: {len(train_data)} / {len(val_data)}")
 
     output_path = args.output
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-    checkpoints = trainer.train(
-        model,
-        optimizer,
-        loss_fn,
-        scheduler=scheduler,
+    checkpoints, history = train_fabric_loop(
+        model=model,
+        train_data=train_data,
+        val_data=val_data,
+        loss_fn=loss_fn,
+        metric_dict=metric_dict,
+        y_label=args.y_label,
+        device=dev,
         batch_size=args.batch_size,
+        num_workers=args.num_workers,
         epochs=args.epochs,
-        val_every_n_epochs=args.val_every,
-        use_validation_mask=args.use_validation_mask,
-        with_RT=args.with_rt,
-        with_CCS=args.with_ccs,
+        val_every=args.val_every,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        scheduler_name=args.scheduler,
+        scheduler_patience=args.scheduler_patience,
+        scheduler_factor=args.scheduler_factor,
+        with_rt=args.with_rt,
+        with_ccs=args.with_ccs,
         rt_metric=args.rt_metric,
-        mask_name=args.validation_mask_name,
-        save_path=output_path,
-        tag="train",
+        use_validation_mask=args.use_validation_mask,
+        validation_mask_name=args.validation_mask_name,
+        output_path=output_path,
+        logger=print,
     )
-
+    if args.history_out:
+        _save_history(history, args.history_out)
+        print(f"Saved training history to {args.history_out}")
     print(f"Finished training. Best checkpoint: {checkpoints['file']}")
 
 

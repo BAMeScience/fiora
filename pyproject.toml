@@ -20,6 +20,7 @@ dependencies = [
   "pandas",
   "seaborn",
   "torch",
+  "lightning-fabric>=2.6,<2.7",
   "torch_geometric>=2.6,<2.7",
   "torchmetrics",
   "dill",

@@ -113,6 +113,12 @@ fiora-train \
   --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-"
 ```
 
+To persist per-epoch training history, add `--history-out` (supports `.json` or `.csv`):
+
+```bash
+fiora-train ... --history-out checkpoints/fiora_history.json
+```
+
 ### Model Evaluation CLI
 
 You can evaluate a trained checkpoint on validation/test splits with:
