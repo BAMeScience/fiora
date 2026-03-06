@@ -5,6 +5,7 @@ import json
 import os
 import re
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -142,6 +143,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-upper-limit", type=float, default=1000.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument(
+        "--pin-memory",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Pin host memory for DataLoader (auto: enabled for CUDA).",
+    )
     parser.add_argument("--val-every", type=int, default=1)
     parser.add_argument(
         "--use-validation-mask",
@@ -220,20 +227,125 @@ def _safe_metabolite(smiles: str):
         return None
 
 
-def _build_summary_from_columns(row, metadata_key_map):
+def _is_missing_value(val) -> bool:
+    return val is None or (isinstance(val, float) and np.isnan(val))
+
+
+def _build_summary_from_record(record: dict, metadata_key_map) -> dict:
     summary = {}
     for key, cols in metadata_key_map.items():
         if not isinstance(cols, (list, tuple)):
             cols = [cols]
         for col in cols:
-            if col in row.index:
-                value = row[col]
-                if value is not None and not (
-                    isinstance(value, float) and np.isnan(value)
-                ):
+            if col in record:
+                value = record[col]
+                if not _is_missing_value(value):
                     summary[key] = value
                     break
     return summary
+
+
+def _parallel_map(func, tasks, num_workers: int):
+    if num_workers > 1:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            yield from executor.map(func, tasks)
+    else:
+        for task in tasks:
+            yield func(task)
+
+
+def _progress_iterator(iterable, total: int, desc: str):
+    try:
+        from tqdm.auto import tqdm
+
+        return tqdm(iterable, total=total, desc=desc)
+    except Exception:
+        return iterable
+
+
+def _prepare_metabolite_task(task):
+    (
+        idx,
+        record,
+        smiles_col,
+        group_id_col,
+        summary_col,
+        loss_weight_col,
+        metadata_key_map,
+        node_encoder,
+        bond_encoder,
+        covariate_encoder,
+        rt_encoder,
+    ) = task
+
+    smiles = record.get(smiles_col)
+    if _is_missing_value(smiles):
+        return idx, None
+
+    mol = _safe_metabolite(smiles)
+    if mol is None:
+        return idx, None
+
+    try:
+        mol.create_molecular_structure_graph()
+        mol.compute_graph_attributes(node_encoder, bond_encoder)
+    except Exception:
+        return idx, None
+
+    if group_id_col in record:
+        group_id = record.get(group_id_col)
+        if not _is_missing_value(group_id):
+            try:
+                mol.set_id(int(group_id))
+            except Exception:
+                pass
+
+    summary = record.get(summary_col) if summary_col in record else None
+    if summary is None:
+        summary = _build_summary_from_record(record, metadata_key_map)
+
+    try:
+        mol.add_metadata(summary, covariate_encoder, rt_encoder)
+    except Exception:
+        return idx, None
+
+    loss_weight = record.get(loss_weight_col) if loss_weight_col in record else None
+    if not _is_missing_value(loss_weight):
+        try:
+            mol.set_loss_weight(float(loss_weight))
+        except Exception:
+            mol.set_loss_weight(1.0)
+    else:
+        mol.set_loss_weight(1.0)
+
+    return idx, mol
+
+
+def _resolve_tolerance(record: dict, ppm_col: str, ppm_default: float) -> float:
+    tol = ppm_default
+    if ppm_col in record:
+        try:
+            val = float(record[ppm_col])
+            if not np.isnan(val):
+                tol = val
+        except Exception:
+            pass
+    return tol
+
+
+def _match_peaks_task(task):
+    idx, metabolite, peaks, tol = task
+    if not isinstance(peaks, dict):
+        return idx, False
+    mz = peaks.get("mz")
+    intensity = peaks.get("intensity")
+    if mz is None or intensity is None or len(mz) == 0:
+        return idx, False
+    try:
+        metabolite.match_fragments_to_peaks(mz, intensity, tolerance=tol)
+        return idx, True
+    except Exception:
+        return idx, False
 
 
 def _resolve_device(device: str) -> str:
@@ -385,44 +497,31 @@ def main() -> None:
 
     # Build metabolites
     invalid_rows = []
-    for idx, row in df.iterrows():
-        smiles = row.get(args.smiles_col)
-        if smiles is None or (isinstance(smiles, float) and np.isnan(smiles)):
-            invalid_rows.append(idx)
-            continue
-        mol = _safe_metabolite(smiles)
+    metabolite_tasks = (
+        (
+            idx,
+            row.to_dict(),
+            args.smiles_col,
+            args.group_id_col,
+            args.summary_col,
+            args.loss_weight_col,
+            metadata_key_map,
+            node_encoder,
+            bond_encoder,
+            covariate_encoder,
+            rt_encoder,
+        )
+        for idx, row in df.iterrows()
+    )
+    metabolite_results = _parallel_map(
+        _prepare_metabolite_task, metabolite_tasks, args.num_workers
+    )
+    for idx, mol in _progress_iterator(
+        metabolite_results, total=len(df), desc="Building graphs"
+    ):
         if mol is None:
             invalid_rows.append(idx)
             continue
-        mol.create_molecular_structure_graph()
-        mol.compute_graph_attributes(node_encoder, bond_encoder)
-
-        if args.group_id_col in df.columns:
-            try:
-                mol.set_id(int(row[args.group_id_col]))
-            except Exception:
-                pass
-
-        summary = None
-        if args.summary_col in df.columns:
-            summary = row.get(args.summary_col)
-        if summary is None:
-            summary = _build_summary_from_columns(row, metadata_key_map)
-
-        try:
-            mol.add_metadata(summary, covariate_encoder, rt_encoder)
-        except Exception:
-            invalid_rows.append(idx)
-            continue
-
-        if args.loss_weight_col in df.columns:
-            try:
-                mol.set_loss_weight(float(row[args.loss_weight_col]))
-            except Exception:
-                mol.set_loss_weight(1.0)
-        else:
-            mol.set_loss_weight(1.0)
-
         df.at[idx, "Metabolite"] = mol
 
     if invalid_rows:
@@ -443,27 +542,17 @@ def main() -> None:
     # Match peaks to fragments
     ppm_default = args.ppm if args.ppm is not None else DEFAULT_PPM
     match_invalid = []
-    for idx, row in df.iterrows():
-        peaks = row.get(args.peaks_col)
-        if not isinstance(peaks, dict):
-            match_invalid.append(idx)
-            continue
-        mz = peaks.get("mz")
-        intensity = peaks.get("intensity")
-        if mz is None or intensity is None or len(mz) == 0:
-            match_invalid.append(idx)
-            continue
-        tol = ppm_default
-        if args.ppm_col in df.columns:
-            try:
-                val = float(row[args.ppm_col])
-                if not np.isnan(val):
-                    tol = val
-            except Exception:
-                pass
-        try:
-            row["Metabolite"].match_fragments_to_peaks(mz, intensity, tolerance=tol)
-        except Exception:
+    match_tasks = (
+        (
+            idx,
+            row["Metabolite"],
+            row.get(args.peaks_col),
+            _resolve_tolerance(row, args.ppm_col, ppm_default),
+        )
+        for idx, row in df.iterrows()
+    )
+    for idx, matched in _parallel_map(_match_peaks_task, match_tasks, args.num_workers):
+        if not matched:
             match_invalid.append(idx)
 
     if match_invalid:
@@ -613,6 +702,7 @@ def main() -> None:
         validation_mask_name=args.validation_mask_name,
         output_path=output_path,
         logger=print,
+        pin_memory=args.pin_memory,
     )
     if args.history_out:
         _save_history(history, args.history_out)

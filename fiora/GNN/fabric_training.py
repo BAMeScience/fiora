@@ -145,6 +145,13 @@ def unwrap_model(model):
     return model.module if hasattr(model, "module") else model
 
 
+def move_batch_to_device(batch, device, non_blocking: bool):
+    try:
+        return batch.to(device, non_blocking=non_blocking)
+    except TypeError:
+        return batch.to(device)
+
+
 def run_epoch(
     fabric: Fabric,
     model: torch.nn.Module,
@@ -162,6 +169,7 @@ def run_epoch(
     mask_name: str = "validation_mask",
     show_progress: bool = False,
     progress_desc: str = "",
+    non_blocking_transfer: bool = False,
 ):
     is_training = optimizer is not None
     if is_training:
@@ -177,7 +185,9 @@ def run_epoch(
     )
 
     for batch in iterator:
-        batch = batch.to(fabric.device)
+        batch = move_batch_to_device(
+            batch, fabric.device, non_blocking=non_blocking_transfer
+        )
         with torch.set_grad_enabled(is_training):
             y_pred = model(batch, with_RT=with_rt, with_CCS=with_ccs)
 
@@ -313,9 +323,14 @@ def train_fabric_loop(
     progress_threshold: int = TQDM_DATA_THRESHOLD,
     launch_fabric: bool = True,
     logger: Callable[[str], None] | None = print,
+    pin_memory: bool | None = None,
 ):
     has_validation = len(val_data) > 0
     accelerator, devices = resolve_fabric_runtime(device)
+    if pin_memory is None:
+        pin_memory = accelerator == "cuda"
+    use_non_blocking_transfer = bool(pin_memory and accelerator == "cuda")
+
     fabric = Fabric(accelerator=accelerator, devices=devices)
     if launch_fabric:
         fabric.launch()
@@ -347,6 +362,7 @@ def train_fabric_loop(
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=True,
+        pin_memory=pin_memory,
     )
     val_loader = None
     if has_validation:
@@ -355,6 +371,7 @@ def train_fabric_loop(
             batch_size=batch_size,
             num_workers=num_workers,
             shuffle=False,
+            pin_memory=pin_memory,
         )
 
     model, optimizer = fabric.setup(model, optimizer)
@@ -393,6 +410,7 @@ def train_fabric_loop(
             optimizer=optimizer,
             show_progress=show_train_progress,
             progress_desc=f"Train {epoch}/{epochs}",
+            non_blocking_transfer=use_non_blocking_transfer,
         )
 
         is_val_cycle = has_validation and (epoch % val_every == 0)
@@ -413,6 +431,7 @@ def train_fabric_loop(
                 mask_name=validation_mask_name,
                 show_progress=show_val_progress,
                 progress_desc=f"Val {epoch}/{epochs}",
+                non_blocking_transfer=use_non_blocking_transfer,
             )
         else:
             val_loss = float("nan")

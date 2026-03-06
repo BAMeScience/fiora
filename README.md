@@ -119,6 +119,9 @@ To persist per-epoch training history, add `--history-out` (supports `.json` or 
 fiora-train ... --history-out checkpoints/fiora_history.json
 ```
 
+`pin_memory` is enabled automatically on CUDA; you can override with `--pin-memory` or `--no-pin-memory`.
+`--num-workers` is used for both DataLoader workers and parallel preprocessing (thread-based metabolite graph/peak matching setup) in the training CLI.
+
 ### Model Evaluation CLI
 
 You can evaluate a trained checkpoint on validation/test splits with:
