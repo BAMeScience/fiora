@@ -125,7 +125,17 @@ fiora-eval \
   --output-dir checkpoints/eval
 ```
 
-This prints split-level summary scores (default: `spectral_sqrt_cosine`) and writes per-split result files like `validation_eval.csv` and `test_eval.csv` when `--output-dir` is set.
+This prints split-level summary scores (default: `spectral_sqrt_cosine`) and, when available, also reports precursor-excluded metrics (`spectral_sqrt_cosine_wo_prec`, `spectral_sqrt_cosine_avg`). Per-split result files like `validation_eval.csv` and `test_eval.csv` are written when `--output-dir` is set.
+
+### Model Info CLI
+
+To inspect key parameters of a trained model checkpoint:
+
+```bash
+fiora-model-info -m checkpoints/fiora.pt
+```
+
+Use `--as-json` to print the full `model_params` dictionary.
 
 ## The Algorithm
 

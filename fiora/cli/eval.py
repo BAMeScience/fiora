@@ -63,6 +63,12 @@ def parse_args() -> argparse.Namespace:
         help="Score column to summarize after evaluation.",
     )
     parser.add_argument(
+        "--print-wo-prec",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Also print precursor-excluded score summaries when available (default: true).",
+    )
+    parser.add_argument(
         "--y-label",
         default="compiled_probsALL",
         help="Prediction target label used during training.",
@@ -273,6 +279,13 @@ def _to_csv_safe(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _metric_stats(part: pd.DataFrame, metric: str) -> tuple[float, float] | None:
+    if metric not in part.columns:
+        return None
+    vals = pd.to_numeric(part[metric], errors="coerce")
+    return float(vals.mean()), float(vals.median())
+
+
 def main() -> None:
     args = parse_args()
     dev = _resolve_device(args.device)
@@ -337,6 +350,7 @@ def main() -> None:
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    summary_table: dict[str, dict[str, tuple[float, float]]] = {}
     for split in splits:
         part = df[df[args.datasplit_col] == split].copy()
         if part.empty:
@@ -352,20 +366,40 @@ def main() -> None:
             progress_desc=f"{split} split",
         )
 
-        if args.score in part.columns:
-            score_vals = pd.to_numeric(part[args.score], errors="coerce")
-            print(
-                f"Split '{split}': n={len(part)} | "
-                f"{args.score}_mean={score_vals.mean():.5f} | "
-                f"{args.score}_median={score_vals.median():.5f}"
-            )
-        else:
-            print(f"Split '{split}': n={len(part)} | score '{args.score}' not found.")
+        metrics_to_report = [args.score]
+        if args.print_wo_prec:
+            for metric in ["spectral_sqrt_cosine_wo_prec", "spectral_sqrt_cosine_avg"]:
+                if metric != args.score:
+                    metrics_to_report.append(metric)
+
+        summaries = []
+        for metric in metrics_to_report:
+            stats = _metric_stats(part, metric)
+            if stats is None:
+                if metric == args.score:
+                    summaries.append(f"score '{args.score}' not found")
+                continue
+            mean, median = stats
+            summary_table.setdefault(metric, {})[split] = (mean, median)
+            summaries.append(f"{metric}_mean={mean:.5f} | {metric}_median={median:.5f}")
+
+        print(f"Split '{split}': n={len(part)} | " + " | ".join(summaries))
 
         if output_dir is not None:
             out_path = output_dir / f"{split}_eval.csv"
             _to_csv_safe(part).to_csv(out_path, index=False)
             print(f"Wrote {len(part)} rows to {out_path}")
+
+    if summary_table:
+        table = pd.DataFrame(
+            index=list(summary_table.keys()), columns=splits, dtype=object
+        )
+        for metric, split_stats in summary_table.items():
+            for split, (mean, median) in split_stats.items():
+                table.at[metric, split] = f"{mean:.5f} / {median:.5f}"
+        table = table.fillna("-")
+        print("\nSummary Table (mean / median):")
+        print(table.to_string())
 
 
 if __name__ == "__main__":

@@ -35,10 +35,11 @@ dependencies = [
 fiora-predict = "fiora.cli.predict:main"
 fiora-train = "fiora.cli.train:main"
 fiora-eval = "fiora.cli.eval:main"
+fiora-model-info = "fiora.cli.model_info:main"
 
 [tool.setuptools]
 include-package-data = true
-script-files = ["scripts/fiora-predict", "scripts/fiora-train", "scripts/fiora-eval"]  # like setup.py `scripts=[...]` (not console entry points)
+script-files = ["scripts/fiora-predict", "scripts/fiora-train", "scripts/fiora-eval", "scripts/fiora-model-info"]  # like setup.py `scripts=[...]` (not console entry points)
 
 [tool.setuptools.packages.find]
 include = ["fiora", "fiora.*"]
