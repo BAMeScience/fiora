@@ -245,7 +245,7 @@ def _load_model_params(path: str | None) -> dict:
 
 def _choose_loss(loss_name: str):
     if loss_name == "graphwise_kl":
-        return GraphwiseKLLoss(reduction="mean"), {"mse": GraphwiseKLLossMetric}
+        return GraphwiseKLLoss(reduction="mean"), {"kl": GraphwiseKLLossMetric}
     if loss_name == "weighted_mse":
         return WeightedMSELoss(), {"mse": WeightedMSEMetric}
     if loss_name == "weighted_mae":

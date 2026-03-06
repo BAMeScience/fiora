@@ -203,13 +203,19 @@ def _assign_reference_splits(
     test_size_remaining = desired_split_size - len(test)
     val_size_remaining = desired_split_size - len(val)
 
-    test_new_frac = test_size_remaining / len(unassigned_keys) if len(unassigned_keys) else 0
-    val_new_frac = val_size_remaining / len(unassigned_keys) if len(unassigned_keys) else 0
+    test_new_frac = (
+        test_size_remaining / len(unassigned_keys) if len(unassigned_keys) else 0
+    )
+    val_new_frac = (
+        val_size_remaining / len(unassigned_keys) if len(unassigned_keys) else 0
+    )
     if len(unassigned_keys):
         temp_keys, test_keys = train_test_split(
             unassigned_keys, test_size=test_new_frac, random_state=seed
         )
-        adjusted_val_size = val_new_frac / (1 - test_new_frac) if (1 - test_new_frac) else 0
+        adjusted_val_size = (
+            val_new_frac / (1 - test_new_frac) if (1 - test_new_frac) else 0
+        )
         train_keys, val_keys = train_test_split(
             temp_keys, test_size=adjusted_val_size, random_state=seed
         )
@@ -301,7 +307,9 @@ def main() -> None:
     df["CE"] = df["CE_steps"].apply(lambda x: sum(x) / len(x) if x else np.nan)
 
     if args.filter_spectype:
-        allowed_spectypes = [s.strip() for s in args.allowed_spectypes.split(",") if s.strip()]
+        allowed_spectypes = [
+            s.strip() for s in args.allowed_spectypes.split(",") if s.strip()
+        ]
         before = len(df)
         df = df[df["SPECTYPE"].isin(allowed_spectypes)]
         _log(
@@ -399,7 +407,9 @@ def main() -> None:
         feature_list=["molecular_weight", "precursor_mode", "instrument"]
     )
     setup_encoder.normalize_features["collision_energy"]["max"] = args.ce_upper_limit
-    setup_encoder.normalize_features["molecular_weight"]["max"] = args.weight_upper_limit
+    setup_encoder.normalize_features["molecular_weight"]["max"] = (
+        args.weight_upper_limit
+    )
     rt_encoder.normalize_features["molecular_weight"]["max"] = args.weight_upper_limit
 
     df["summary"] = df.apply(
@@ -421,8 +431,10 @@ def main() -> None:
     )
 
     correct_energy = df["Metabolite"].apply(
-        lambda x: (x.metadata["collision_energy"] <= args.ce_upper_limit)
-        and (x.metadata["collision_energy"] > 1)
+        lambda x: (
+            (x.metadata["collision_energy"] <= args.ce_upper_limit)
+            and (x.metadata["collision_energy"] > 1)
+        )
     )
     before = len(df)
     df = df[correct_energy]
@@ -486,7 +498,9 @@ def main() -> None:
 
     for col in ["peaks", "summary"]:
         if col in df.columns:
-            df[col] = df[col].apply(lambda v: json.dumps(v) if isinstance(v, dict) else v)
+            df[col] = df[col].apply(
+                lambda v: json.dumps(v) if isinstance(v, dict) else v
+            )
 
     _log(f"Writing output to {args.output}", args.verbose)
     df.to_csv(args.output, index=False)

@@ -25,8 +25,8 @@ class SpectralTrainer(Trainer):
         train_val_split: float = 0.8,
         split_by_group: bool = False,
         only_training: bool = False,
-        train_keys: List[int] = [],
-        val_keys: List[int] = [],
+        train_keys: List[int] | None = None,
+        val_keys: List[int] | None = None,
         y_tag: str = "y",
         metric_dict: Dict = None,
         problem_type: Literal[
@@ -86,6 +86,8 @@ class SpectralTrainer(Trainer):
 
     @staticmethod
     def _format_metric(stats):
+        if "kl" in stats:
+            return "kl", float(stats["kl"].detach().cpu().item())
         if "mse" in stats:
             rmse = torch.sqrt(stats["mse"])
             return "rmse", float(rmse.detach().cpu().item())
@@ -210,10 +212,22 @@ class SpectralTrainer(Trainer):
                 model.eval()
                 y_pred = model(batch, with_RT=with_RT, with_CCS=with_CCS)
                 if mask_name:
+                    kwargs = {}
+                    if with_weights:
+                        kwargs = {"weight": batch["weight_tensor"][batch[mask_name]]}
                     metrics.update(
                         y_pred["fragment_probs"][batch[mask_name]],
                         batch[self.y_tag][batch[mask_name]],
+                        **kwargs,
                     )
+                    if not rt_metric and torch.any(batch[mask_name]):
+                        batch_loss = loss_fn(
+                            y_pred["fragment_probs"][batch[mask_name]],
+                            batch[self.y_tag][batch[mask_name]],
+                            **kwargs,
+                        )
+                        validation_loss += self._to_float(batch_loss)
+                        num_batches += 1
                 else:
                     kwargs = {}
                     if with_weights:
@@ -287,14 +301,14 @@ class SpectralTrainer(Trainer):
                 self.validation_data,
                 batch_size=batch_size,
                 num_workers=self.num_workers,
-                shuffle=True,
+                shuffle=False,
             )
-        using_weighted_loss_func = isinstance(loss_fn, WeightedMSELoss) | isinstance(
-            loss_fn, WeightedMAELoss
+        using_weighted_loss_func = isinstance(
+            loss_fn, (WeightedMSELoss, WeightedMAELoss)
         )
         show_train_progress = len(self.training_data) > TQDM_DATA_THRESHOLD
-        show_val_progress = (
-            (not self.only_training) and (len(self.validation_data) > TQDM_DATA_THRESHOLD)
+        show_val_progress = (not self.only_training) and (
+            len(self.validation_data) > TQDM_DATA_THRESHOLD
         )
 
         # Main loop
@@ -334,12 +348,13 @@ class SpectralTrainer(Trainer):
                     show_progress=show_val_progress,
                     progress_desc=f"Val {e + 1}/{epochs}",
                 )
+                val_metric_name, val_metric_value = self._format_metric(val_stats)
             else:
                 val_stats, val_loss = None, float("nan")
+                val_metric_name, val_metric_value = None, None
 
             train_metric_name, train_metric_value = self._format_metric(train_stats)
             if val_stats is not None:
-                val_metric_name, val_metric_value = self._format_metric(val_stats)
                 val_metric_str = f"val_{val_metric_name}: {val_metric_value:.4f}"
             else:
                 val_metric_str = "val_metric: n/a"
@@ -356,7 +371,7 @@ class SpectralTrainer(Trainer):
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     last_lr = scheduler.get_last_lr()[0]
                     if is_val_cycle:
-                        scheduler.step(torch.sqrt(val_stats["mse"]))
+                        scheduler.step(val_metric_value)
                         if scheduler.get_last_lr()[0] < last_lr:
                             print(
                                 f"\t >> Learning rate reduced from {last_lr:1.0e} to {scheduler.get_last_lr()[0]:1.0e}"
@@ -367,13 +382,19 @@ class SpectralTrainer(Trainer):
             # Save history
             if is_val_cycle:
                 # Update checkpoint
-                if val_stats["mse"].tolist() < self.checkpoint_stats["val_loss"]:
+                if val_metric_value < self.checkpoint_stats["val_loss"]:
+                    checkpoint_data = {
+                        "epoch": e + 1,
+                        "val_loss": val_metric_value,
+                        "val_metric_name": val_metric_name,
+                        "sqrt_val_loss": val_metric_value,
+                    }
+                    if "mse" in val_stats:
+                        checkpoint_data["sqrt_val_loss"] = self._to_float(
+                            torch.sqrt(val_stats["mse"])
+                        )
                     self._update_checkpoint(
-                        {
-                            "epoch": e + 1,
-                            "val_loss": val_stats["mse"].tolist(),
-                            "sqrt_val_loss": torch.sqrt(val_stats["mse"]).tolist(),
-                        },
+                        checkpoint_data,
                         model,
                     )
                     print(f"\t >> Set new checkpoint to epoch {e + 1}")

@@ -284,12 +284,23 @@ class SimulationFramework:
         suffix: str = "",
         groundtruth=True,
         min_intensity: float = 0.001,
+        progress: bool = False,
+        progress_desc: str = "Evaluate",
     ):
 
         with torch.no_grad():
             model.eval()
 
-            for i, data in df.iterrows():
+            iterator = df.iterrows()
+            if progress:
+                try:
+                    from tqdm.auto import tqdm
+
+                    iterator = tqdm(iterator, total=len(df), desc=progress_desc)
+                except Exception:
+                    pass
+
+            for i, data in iterator:
                 metabolite = data["Metabolite"]
                 stats = self.simulate_and_score(
                     metabolite,

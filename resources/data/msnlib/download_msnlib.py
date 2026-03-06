@@ -95,7 +95,9 @@ def _resolve_zenodo_record(
         resolved.append((resolved_url, filename))
 
     if not resolved:
-        raise RuntimeError(f"Could not resolve any download URLs for record {record_id}")
+        raise RuntimeError(
+            f"Could not resolve any download URLs for record {record_id}"
+        )
     return resolved
 
 

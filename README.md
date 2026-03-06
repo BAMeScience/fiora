@@ -113,6 +113,20 @@ fiora-train \
   --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-"
 ```
 
+### Model Evaluation CLI
+
+You can evaluate a trained checkpoint on validation/test splits with:
+
+```bash
+fiora-eval \
+  -i resources/data/msnlib/library.csv \
+  -m checkpoints/fiora.pt \
+  --device cuda:0 \
+  --output-dir checkpoints/eval
+```
+
+This prints split-level summary scores (default: `spectral_sqrt_cosine`) and writes per-split result files like `validation_eval.csv` and `test_eval.csv` when `--output-dir` is set.
+
 ## The Algorithm
 
 FIORA has been developed as a computational tool to predict bond cleavages that occur in the MS/MS fragmentation process and estimate the probabilities of resulting fragment ions. To that end, FIORA utilizes graph neural networks to learn local molecular neighborhoods around bonds, combined with edge prediction to simulate bond dissociation. The prediction determines which fragment (left or right of the bond cleavage, with up to four possible hydrogen losses) retains the charge and which becomes the neutral loss. The figure below illustrates an example fragmentation prediction for a single bond.

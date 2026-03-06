@@ -22,8 +22,8 @@ class Trainer(ABC):
         train_val_split: float = 0.8,
         split_by_group: bool = False,
         only_training: bool = False,
-        train_keys: List[int] = [],
-        val_keys: List[int] = [],
+        train_keys: List[int] | None = None,
+        val_keys: List[int] | None = None,
         seed: int = 42,
         num_workers: int = 0,
         device: str = "cpu",
@@ -50,10 +50,12 @@ class Trainer(ABC):
         self,
         data,
         train_val_split: float,
-        train_keys: List[int],
-        val_keys: List[int],
+        train_keys: List[int] | None,
+        val_keys: List[int] | None,
         seed: int,
     ):
+        train_keys = train_keys or []
+        val_keys = val_keys or []
         group_ids = [getattr(x, "group_id") for x in data]
         keys = np.unique(group_ids)
         if len(train_keys) > 0 and len(val_keys) > 0:
@@ -94,8 +96,8 @@ class Trainer(ABC):
     def _init_checkpoint_system(self, save_path: str) -> None:
         self.checkpoint_stats = {
             "epoch": -1,
-            "val_loss": 100000.0,
-            "sqrt_val_loss": 100000.0,
+            "val_loss": float("inf"),
+            "sqrt_val_loss": float("inf"),
             "file": save_path,
         }
 
@@ -115,12 +117,30 @@ class Trainer(ABC):
             "lr": [],
         }
 
+    @staticmethod
+    def _to_float(value):
+        if isinstance(value, torch.Tensor):
+            return float(value.detach().cpu().item())
+        return float(value)
+
+    def _extract_primary_error(self, stats):
+        if "mse" in stats:
+            mse = self._to_float(stats["mse"])
+            return mse, float(np.sqrt(mse))
+        if "mae" in stats:
+            mae = self._to_float(stats["mae"])
+            return mae, float("nan")
+        key = next(iter(stats.keys()))
+        return self._to_float(stats[key]), float("nan")
+
     def _update_history(self, epoch, train_stats, val_stats, lr) -> None:
+        train_error, train_sqrt_error = self._extract_primary_error(train_stats)
+        val_error, val_sqrt_error = self._extract_primary_error(val_stats)
         self.history["epoch"].append(epoch)
-        self.history["train_error"].append(train_stats["mse"])
-        self.history["sqrt_train_error"].append(torch.sqrt(train_stats["mse"]).tolist())
-        self.history["val_error"].append(val_stats["mse"])
-        self.history["sqrt_val_error"].append(torch.sqrt(val_stats["mse"]).tolist())
+        self.history["train_error"].append(train_error)
+        self.history["sqrt_train_error"].append(train_sqrt_error)
+        self.history["val_error"].append(val_error)
+        self.history["sqrt_val_error"].append(val_sqrt_error)
         self.history["lr"].append(lr)
 
     def is_group_in_training_set(self, group_id):

@@ -9,9 +9,7 @@ class LibraryLoader:
         return pd.read_csv(path, index_col=[0], low_memory=False)
 
     def load_from_msp(self):
-        # TODO IMPLEMENT
-        return
+        raise NotImplementedError("MSP loading is not implemented yet.")
 
     def clean_library(self):
-        # TODO IMPLEMENT + parameters for filtration
-        return
+        raise NotImplementedError("Library cleaning is not implemented yet.")
