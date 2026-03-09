@@ -70,8 +70,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--y-label",
-        default="compiled_probsALL",
-        help="Prediction target label used during training.",
+        default=None,
+        help="Prediction target label used during training (default: from model params, fallback compiled_probsALL).",
     )
     parser.add_argument(
         "--min-prob",
@@ -316,6 +316,18 @@ def main() -> None:
 
     model = _load_model(args.model, dev)
     model.eval()
+    y_label = args.y_label or model.model_params.get(
+        "training_label", "compiled_probsALL"
+    )
+    if args.y_label is None:
+        print(f"Using y-label from model params: {y_label}")
+    elif model.model_params.get("training_label") and y_label != model.model_params.get(
+        "training_label"
+    ):
+        print(
+            "Warning: --y-label does not match model training label "
+            f"({y_label} vs {model.model_params.get('training_label')})."
+        )
 
     # Standardize user-configurable column names for downstream code.
     if args.summary_col != "summary" and args.summary_col in df.columns:
@@ -359,7 +371,7 @@ def main() -> None:
         part = fiora.simulate_all(
             part,
             model,
-            base_attr_name=args.y_label,
+            base_attr_name=y_label,
             groundtruth=use_groundtruth,
             min_intensity=args.min_prob,
             progress=args.progress,

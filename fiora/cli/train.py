@@ -72,9 +72,45 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-5)
     parser.add_argument(
+        "--hidden-dimension",
+        type=int,
+        default=None,
+        help="Override model hidden dimension (default from model params).",
+    )
+    parser.add_argument(
+        "--embedding-dimension",
+        type=int,
+        default=None,
+        help="Override embedding dimension (default from model params).",
+    )
+    parser.add_argument(
+        "--dense-dim",
+        type=int,
+        default=None,
+        help="Override dense layer hidden dimension (None keeps current setting).",
+    )
+    parser.add_argument(
+        "--residual-connections",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Override residual connections setting.",
+    )
+    parser.add_argument(
+        "--layer-stacking",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Override layer stacking setting.",
+    )
+    parser.add_argument(
         "--loss",
         choices=["graphwise_kl", "weighted_mse", "weighted_mae", "mse"],
         default="graphwise_kl",
+    )
+    parser.add_argument(
+        "--precursor-loss-weight",
+        type=float,
+        default=1.0,
+        help="Multiplier for precursor positions in fragment loss (1.0 keeps original weighting).",
     )
     parser.add_argument(
         "--y-label",
@@ -643,6 +679,26 @@ def main() -> None:
             "ccs_supported": args.with_ccs,
         }
     )
+    if args.hidden_dimension is not None:
+        model_params["hidden_dimension"] = int(args.hidden_dimension)
+    if args.embedding_dimension is not None:
+        model_params["embedding_dimension"] = int(args.embedding_dimension)
+    if args.dense_dim is not None:
+        model_params["dense_dim"] = int(args.dense_dim)
+    if args.residual_connections is not None:
+        model_params["residual_connections"] = bool(args.residual_connections)
+    if args.layer_stacking is not None:
+        model_params["layer_stacking"] = bool(args.layer_stacking)
+    if model_params.get("residual_connections", False):
+        if (
+            model_params.get("hidden_dimension")
+            != model_params.get("embedding_dimension")
+            and args.embedding_dimension is None
+        ):
+            model_params["embedding_dimension"] = model_params["hidden_dimension"]
+        if args.dense_dim is None and "dense_dim" not in base_params:
+            # Avoid shape-mismatch in dense residual blocks when using default params.
+            model_params["dense_dim"] = None
 
     # Initialize or resume model
     if args.resume:
@@ -661,6 +717,7 @@ def main() -> None:
         raise RuntimeError(
             "Model does not include RT/CCS heads but --with-rt/--with-ccs was set."
         )
+    model.model_params["training_label"] = args.y_label
 
     loss_fn, metric_dict = _choose_loss(args.loss)
 
@@ -703,6 +760,7 @@ def main() -> None:
         output_path=output_path,
         logger=print,
         pin_memory=args.pin_memory,
+        precursor_loss_weight=args.precursor_loss_weight,
     )
     if args.history_out:
         _save_history(history, args.history_out)

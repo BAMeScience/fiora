@@ -6,7 +6,6 @@ import networkx as nx
 
 node_color_map = {"C": "gray", "O": "red", "N": "blue"}
 
-
 edge_color_map = {"SINGLE": "black", "DOUBLE": "black", "AROMATIC": "blue"}
 
 edge_width_map = {"SINGLE": 1.5, "DOUBLE": 3, "AROMATIC": 3}
@@ -118,7 +117,6 @@ def compute_edge_related_helper_matrices(A, deg):
 def get_helper_matrices_from_edges(edges, A):
     AL = torch.zeros(len(edges), A.shape[0])
     AR = torch.zeros(AL.shape)
-    edge_idx = []
 
     for i, (u, v) in enumerate(edges):
         AL[i, u] = 1.0

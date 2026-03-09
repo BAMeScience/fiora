@@ -173,7 +173,7 @@ class SimulationFramework:
         if transform_prob == "square":
             max_prob = max(sim_peaks["intensity"]) ** 2
             for i in range(len(sim_peaks["intensity"])):
-                sim_peaks["intensity"][i] == sim_peaks["intensity"][i] ** 2 / max_prob
+                sim_peaks["intensity"][i] = sim_peaks["intensity"][i] ** 2 / max_prob
 
         combined = sorted(
             zip(sim_peaks["mz"], sim_peaks["intensity"], sim_peaks["annotation"]),
@@ -207,11 +207,12 @@ class SimulationFramework:
             stats["CCS_pred"] = prediction["ccs"].squeeze().tolist()
 
         setattr(metabolite, base_attr_name + "_pred", prediction["fragment_probs"])
+        training_label = model.model_params.get("training_label")
         transform_prob = (
             "square"
             if (
-                "training_label" in model.model_params
-                and model.model_params["training_label"] == "compiled_probsSQRT"
+                training_label == "compiled_probsSQRT"
+                or (training_label is None and base_attr_name == "compiled_probsSQRT")
             )
             else "None"
         )

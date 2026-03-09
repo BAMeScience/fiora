@@ -1,10 +1,13 @@
 import random
+import warnings
+from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
 import torch
 import torch_geometric.loader as geom_loader
 from lightning_fabric import Fabric
+from lightning_fabric.utilities.warnings import PossibleUserWarning
 from torchmetrics import MeanSquaredError
 
 from fiora.GNN.Losses import WeightedMAELoss, WeightedMSELoss
@@ -23,12 +26,16 @@ def build_loss_kwargs(
     with_weights: bool,
     mask: torch.Tensor | None = None,
     include_segment_ptr: bool = True,
+    weight_tensor_override: torch.Tensor | None = None,
 ):
     kwargs = {}
     if with_weights:
-        kwargs["weight"] = (
-            batch["weight_tensor"] if mask is None else batch["weight_tensor"][mask]
+        weight_tensor = (
+            weight_tensor_override
+            if weight_tensor_override is not None
+            else batch["weight_tensor"]
         )
+        kwargs["weight"] = weight_tensor if mask is None else weight_tensor[mask]
     if include_segment_ptr and getattr(loss_fn, "requires_segment_ptr", False):
         kwargs["segment_ptr"] = y_pred.get("segment_ptr")
     return kwargs
@@ -145,6 +152,29 @@ def unwrap_model(model):
     return model.module if hasattr(model, "module") else model
 
 
+def apply_precursor_loss_weight(
+    weight_tensor: torch.Tensor,
+    segment_ptr: torch.Tensor | None,
+    precursor_loss_weight: float,
+) -> torch.Tensor:
+    if precursor_loss_weight == 1.0:
+        return weight_tensor
+    if segment_ptr is None or segment_ptr.numel() < 2:
+        return weight_tensor
+
+    weighted = weight_tensor.clone()
+    starts = segment_ptr[:-1]
+    ends = segment_ptr[1:]
+    lengths = ends - starts
+    valid = lengths >= 2
+    if torch.any(valid):
+        right_idx = ends[valid] - 1
+        left_idx = ends[valid] - 2
+        weighted[right_idx] = weighted[right_idx] * precursor_loss_weight
+        weighted[left_idx] = weighted[left_idx] * precursor_loss_weight
+    return weighted
+
+
 def move_batch_to_device(batch, device, non_blocking: bool):
     try:
         return batch.to(device, non_blocking=non_blocking)
@@ -170,6 +200,7 @@ def run_epoch(
     show_progress: bool = False,
     progress_desc: str = "",
     non_blocking_transfer: bool = False,
+    precursor_loss_weight: float = 1.0,
 ):
     is_training = optimizer is not None
     if is_training:
@@ -190,6 +221,16 @@ def run_epoch(
         )
         with torch.set_grad_enabled(is_training):
             y_pred = model(batch, with_RT=with_rt, with_CCS=with_ccs)
+            use_weight_vector = with_weights or getattr(
+                loss_fn, "requires_segment_ptr", False
+            )
+            weight_tensor = None
+            if use_weight_vector:
+                weight_tensor = apply_precursor_loss_weight(
+                    batch["weight_tensor"],
+                    y_pred.get("segment_ptr"),
+                    precursor_loss_weight,
+                )
 
             if use_validation_mask:
                 mask = batch[mask_name]
@@ -198,9 +239,10 @@ def run_epoch(
                         batch=batch,
                         y_pred=y_pred,
                         loss_fn=loss_fn,
-                        with_weights=with_weights,
+                        with_weights=use_weight_vector,
                         mask=mask,
                         include_segment_ptr=False,
+                        weight_tensor_override=weight_tensor,
                     )
                     loss = loss_fn(
                         y_pred["fragment_probs"][mask],
@@ -246,8 +288,9 @@ def run_epoch(
                 batch=batch,
                 y_pred=y_pred,
                 loss_fn=loss_fn,
-                with_weights=with_weights,
+                with_weights=use_weight_vector,
                 include_segment_ptr=True,
+                weight_tensor_override=weight_tensor,
             )
             loss = loss_fn(y_pred["fragment_probs"], batch[y_tag], **kwargs)
             if not rt_metric:
@@ -294,6 +337,250 @@ def run_epoch(
     return avg_loss, metric_label, metric_value
 
 
+@dataclass
+class EpochResult:
+    loss: float
+    metric_label: str
+    metric_value: float
+
+
+@dataclass
+class TrainingState:
+    best_metric: float
+    best_epoch: int
+    history: dict
+
+
+def _init_history() -> dict:
+    return {
+        "epoch": [],
+        "train_error": [],
+        "sqrt_train_error": [],
+        "val_error": [],
+        "sqrt_val_error": [],
+        "lr": [],
+    }
+
+
+def _record_history(
+    history: dict,
+    epoch: int,
+    lr: float,
+    train_result: EpochResult | None,
+    val_result: EpochResult | None,
+) -> None:
+    history["epoch"].append(epoch)
+    history["train_error"].append(
+        train_result.metric_value if train_result is not None else float("nan")
+    )
+    history["sqrt_train_error"].append(
+        train_result.metric_value if train_result is not None else float("nan")
+    )
+    history["val_error"].append(
+        val_result.metric_value if val_result is not None else float("nan")
+    )
+    history["sqrt_val_error"].append(
+        val_result.metric_value if val_result is not None else float("nan")
+    )
+    history["lr"].append(lr)
+
+
+def _run_train_epoch(
+    *,
+    fabric: Fabric,
+    model: torch.nn.Module,
+    dataloader,
+    loss_fn,
+    metric,
+    metric_name: str,
+    y_label: str,
+    with_weights: bool,
+    with_rt: bool,
+    with_ccs: bool,
+    rt_metric: bool,
+    optimizer,
+    show_progress: bool,
+    progress_desc: str,
+    non_blocking_transfer: bool,
+    precursor_loss_weight: float,
+) -> EpochResult:
+    loss, label, value = run_epoch(
+        fabric=fabric,
+        model=model,
+        dataloader=dataloader,
+        loss_fn=loss_fn,
+        metric=metric,
+        metric_name=metric_name,
+        y_tag=y_label,
+        with_weights=with_weights,
+        with_rt=with_rt,
+        with_ccs=with_ccs,
+        rt_metric=rt_metric,
+        optimizer=optimizer,
+        show_progress=show_progress,
+        progress_desc=progress_desc,
+        non_blocking_transfer=non_blocking_transfer,
+        precursor_loss_weight=precursor_loss_weight,
+    )
+    return EpochResult(loss=loss, metric_label=label, metric_value=value)
+
+
+def _run_val_epoch(
+    *,
+    fabric: Fabric,
+    model: torch.nn.Module,
+    dataloader,
+    loss_fn,
+    metric,
+    metric_name: str,
+    y_label: str,
+    with_weights: bool,
+    with_rt: bool,
+    with_ccs: bool,
+    rt_metric: bool,
+    use_validation_mask: bool,
+    validation_mask_name: str,
+    show_progress: bool,
+    progress_desc: str,
+    non_blocking_transfer: bool,
+    precursor_loss_weight: float,
+) -> EpochResult:
+    loss, label, value = run_epoch(
+        fabric=fabric,
+        model=model,
+        dataloader=dataloader,
+        loss_fn=loss_fn,
+        metric=metric,
+        metric_name=metric_name,
+        y_tag=y_label,
+        with_weights=with_weights,
+        with_rt=with_rt,
+        with_ccs=with_ccs,
+        rt_metric=rt_metric,
+        use_validation_mask=use_validation_mask,
+        mask_name=validation_mask_name,
+        show_progress=show_progress,
+        progress_desc=progress_desc,
+        non_blocking_transfer=non_blocking_transfer,
+        precursor_loss_weight=precursor_loss_weight,
+    )
+    return EpochResult(loss=loss, metric_label=label, metric_value=value)
+
+
+def _monitor_metric(
+    *,
+    has_validation: bool,
+    is_val_cycle: bool,
+    train_result: EpochResult,
+    val_result: EpochResult | None,
+) -> float | None:
+    if is_val_cycle and val_result is not None:
+        return val_result.metric_value
+    if not has_validation:
+        return train_result.metric_value
+    return None
+
+
+def _step_scheduler(
+    *,
+    scheduler,
+    optimizer,
+    monitor_metric: float | None,
+    fabric: Fabric,
+    logger: Callable[[str], None] | None,
+) -> None:
+    if scheduler is None:
+        return
+    prev_lr = optimizer.param_groups[0]["lr"]
+    if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+        if monitor_metric is not None and not np.isnan(monitor_metric):
+            scheduler.step(monitor_metric)
+    else:
+        scheduler.step()
+    curr_lr = optimizer.param_groups[0]["lr"]
+    if logger is not None and fabric.is_global_zero and curr_lr < prev_lr:
+        logger(f"\t >> Learning rate reduced from {prev_lr:1.0e} to {curr_lr:1.0e}")
+
+
+def _maybe_update_best(
+    *,
+    state: TrainingState,
+    monitor_metric: float | None,
+    epoch: int,
+    model,
+    output_path: str | None,
+    fabric: Fabric,
+    logger: Callable[[str], None] | None,
+    baseline: bool = False,
+) -> None:
+    if monitor_metric is None or np.isnan(monitor_metric):
+        return
+    if monitor_metric >= state.best_metric:
+        return
+    state.best_metric = monitor_metric
+    state.best_epoch = epoch
+    if output_path is not None and fabric.is_global_zero:
+        unwrap_model(model).save(output_path)
+        if logger is not None:
+            if baseline:
+                logger("\t >> Set baseline checkpoint to epoch 0")
+            else:
+                logger(f"\t >> Set new checkpoint to epoch {epoch}")
+
+
+def _log_epoch(
+    *,
+    epoch: int,
+    epochs: int,
+    train_result: EpochResult | None,
+    val_result: EpochResult | None,
+    fabric: Fabric,
+    logger: Callable[[str], None] | None,
+) -> None:
+    if logger is None or not fabric.is_global_zero:
+        return
+
+    train_label = (
+        train_result.metric_label
+        if train_result is not None
+        else (val_result.metric_label if val_result is not None else "metric")
+    )
+    val_label = (
+        val_result.metric_label
+        if val_result is not None
+        else (train_result.metric_label if train_result is not None else "metric")
+    )
+
+    train_loss_str = (
+        f"{train_result.loss:.4f}"
+        if train_result is not None and not np.isnan(train_result.loss)
+        else "n/a"
+    )
+    val_loss_str = (
+        f"{val_result.loss:.4f}"
+        if val_result is not None and not np.isnan(val_result.loss)
+        else "n/a"
+    )
+    train_metric_str = (
+        f"{train_result.metric_value:.4f}"
+        if train_result is not None and not np.isnan(train_result.metric_value)
+        else "n/a"
+    )
+    val_metric_str = (
+        f"{val_result.metric_value:.4f}"
+        if val_result is not None and not np.isnan(val_result.metric_value)
+        else "n/a"
+    )
+
+    logger(
+        f"Epoch {epoch}/{epochs} - "
+        f"loss: {train_loss_str} - "
+        f"val_loss: {val_loss_str} - "
+        f"train_{train_label}: {train_metric_str} - "
+        f"val_{val_label}: {val_metric_str}"
+    )
+
+
 def train_fabric_loop(
     *,
     model,
@@ -324,9 +611,17 @@ def train_fabric_loop(
     launch_fabric: bool = True,
     logger: Callable[[str], None] | None = print,
     pin_memory: bool | None = None,
+    precursor_loss_weight: float = 1.0,
 ):
     has_validation = len(val_data) > 0
     accelerator, devices = resolve_fabric_runtime(device)
+    warnings.filterwarnings(
+        "ignore",
+        message=r"The `srun` command is available on your system but is not used\..*",
+        category=PossibleUserWarning,
+    )
+    if accelerator == "cuda":
+        torch.set_float32_matmul_precision("high")
     if pin_memory is None:
         pin_memory = accelerator == "cuda"
     use_non_blocking_transfer = bool(pin_memory and accelerator == "cuda")
@@ -383,26 +678,66 @@ def train_fabric_loop(
     show_train_progress = len(train_data) > progress_threshold
     show_val_progress = has_validation and (len(val_data) > progress_threshold)
 
-    best_metric = float("inf")
-    best_epoch = -1
-    history = {
-        "epoch": [],
-        "train_error": [],
-        "sqrt_train_error": [],
-        "val_error": [],
-        "sqrt_val_error": [],
-        "lr": [],
-    }
+    state = TrainingState(
+        best_metric=float("inf"), best_epoch=-1, history=_init_history()
+    )
+
+    if has_validation:
+        baseline_result = _run_val_epoch(
+            fabric=fabric,
+            model=model,
+            dataloader=val_loader,
+            loss_fn=loss_fn,
+            metric=val_metric,
+            metric_name=metric_name,
+            y_label=y_label,
+            with_weights=with_weights,
+            with_rt=with_rt,
+            with_ccs=with_ccs,
+            rt_metric=rt_metric,
+            use_validation_mask=use_validation_mask,
+            validation_mask_name=validation_mask_name,
+            show_progress=show_val_progress,
+            progress_desc=f"Val 0/{epochs}",
+            non_blocking_transfer=use_non_blocking_transfer,
+            precursor_loss_weight=precursor_loss_weight,
+        )
+        if fabric.is_global_zero:
+            _record_history(
+                state.history,
+                epoch=0,
+                lr=optimizer.param_groups[0]["lr"],
+                train_result=None,
+                val_result=baseline_result,
+            )
+        _maybe_update_best(
+            state=state,
+            monitor_metric=baseline_result.metric_value,
+            epoch=0,
+            model=model,
+            output_path=output_path,
+            fabric=fabric,
+            logger=logger,
+            baseline=True,
+        )
+        _log_epoch(
+            epoch=0,
+            epochs=epochs,
+            train_result=None,
+            val_result=baseline_result,
+            fabric=fabric,
+            logger=logger,
+        )
 
     for epoch in range(1, epochs + 1):
-        train_loss, train_metric_label, train_metric_value = run_epoch(
+        train_result = _run_train_epoch(
             fabric=fabric,
             model=model,
             dataloader=train_loader,
             loss_fn=loss_fn,
             metric=train_metric,
             metric_name=metric_name,
-            y_tag=y_label,
+            y_label=y_label,
             with_weights=with_weights,
             with_rt=with_rt,
             with_ccs=with_ccs,
@@ -411,96 +746,83 @@ def train_fabric_loop(
             show_progress=show_train_progress,
             progress_desc=f"Train {epoch}/{epochs}",
             non_blocking_transfer=use_non_blocking_transfer,
+            precursor_loss_weight=precursor_loss_weight,
         )
 
         is_val_cycle = has_validation and (epoch % val_every == 0)
+        val_result = None
         if is_val_cycle:
-            val_loss, val_metric_label, val_metric_value = run_epoch(
+            val_result = _run_val_epoch(
                 fabric=fabric,
                 model=model,
                 dataloader=val_loader,
                 loss_fn=loss_fn,
                 metric=val_metric,
                 metric_name=metric_name,
-                y_tag=y_label,
+                y_label=y_label,
                 with_weights=with_weights,
                 with_rt=with_rt,
                 with_ccs=with_ccs,
                 rt_metric=rt_metric,
                 use_validation_mask=use_validation_mask,
-                mask_name=validation_mask_name,
+                validation_mask_name=validation_mask_name,
                 show_progress=show_val_progress,
                 progress_desc=f"Val {epoch}/{epochs}",
                 non_blocking_transfer=use_non_blocking_transfer,
+                precursor_loss_weight=precursor_loss_weight,
             )
-        else:
-            val_loss = float("nan")
-            val_metric_label = train_metric_label
-            val_metric_value = float("nan")
 
-        monitor_metric = None
-        if is_val_cycle:
-            monitor_metric = val_metric_value
-        elif not has_validation:
-            monitor_metric = train_metric_value
-
-        if scheduler is not None:
-            prev_lr = optimizer.param_groups[0]["lr"]
-            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                if monitor_metric is not None and not np.isnan(monitor_metric):
-                    scheduler.step(monitor_metric)
-            else:
-                scheduler.step()
-            curr_lr = optimizer.param_groups[0]["lr"]
-            if logger is not None and fabric.is_global_zero and curr_lr < prev_lr:
-                logger(
-                    f"\t >> Learning rate reduced from {prev_lr:1.0e} to {curr_lr:1.0e}"
-                )
-
-        if monitor_metric is not None and not np.isnan(monitor_metric):
-            if monitor_metric < best_metric:
-                best_metric = monitor_metric
-                best_epoch = epoch
-                if output_path is not None and fabric.is_global_zero:
-                    unwrap_model(model).save(output_path)
-                    if logger is not None:
-                        logger(f"\t >> Set new checkpoint to epoch {epoch}")
+        monitor_metric = _monitor_metric(
+            has_validation=has_validation,
+            is_val_cycle=is_val_cycle,
+            train_result=train_result,
+            val_result=val_result,
+        )
+        _step_scheduler(
+            scheduler=scheduler,
+            optimizer=optimizer,
+            monitor_metric=monitor_metric,
+            fabric=fabric,
+            logger=logger,
+        )
+        _maybe_update_best(
+            state=state,
+            monitor_metric=monitor_metric,
+            epoch=epoch,
+            model=model,
+            output_path=output_path,
+            fabric=fabric,
+            logger=logger,
+            baseline=False,
+        )
 
         if (is_val_cycle or not has_validation) and fabric.is_global_zero:
-            history["epoch"].append(epoch)
-            history["train_error"].append(train_metric_value)
-            history["sqrt_train_error"].append(train_metric_value)
-            history["val_error"].append(
-                val_metric_value if is_val_cycle else float("nan")
+            _record_history(
+                state.history,
+                epoch=epoch,
+                lr=optimizer.param_groups[0]["lr"],
+                train_result=train_result,
+                val_result=val_result if is_val_cycle else None,
             )
-            history["sqrt_val_error"].append(
-                val_metric_value if is_val_cycle else float("nan")
-            )
-            history["lr"].append(optimizer.param_groups[0]["lr"])
+        _log_epoch(
+            epoch=epoch,
+            epochs=epochs,
+            train_result=train_result,
+            val_result=val_result,
+            fabric=fabric,
+            logger=logger,
+        )
 
-        if logger is not None and fabric.is_global_zero:
-            val_loss_str = f"{val_loss:.4f}" if not np.isnan(val_loss) else "n/a"
-            val_metric_str = (
-                f"{val_metric_value:.4f}" if not np.isnan(val_metric_value) else "n/a"
-            )
-            logger(
-                f"Epoch {epoch}/{epochs} - "
-                f"loss: {train_loss:.4f} - "
-                f"val_loss: {val_loss_str} - "
-                f"train_{train_metric_label}: {train_metric_value:.4f} - "
-                f"val_{val_metric_label}: {val_metric_str}"
-            )
-
-    if best_epoch < 0:
-        best_epoch = epochs
-        best_metric = float("nan")
+    if state.best_epoch < 0:
+        state.best_epoch = epochs
+        state.best_metric = float("nan")
         if output_path is not None and fabric.is_global_zero:
             unwrap_model(model).save(output_path)
 
     checkpoints = {
-        "epoch": best_epoch,
-        "val_loss": best_metric,
-        "sqrt_val_loss": best_metric,
+        "epoch": state.best_epoch,
+        "val_loss": state.best_metric,
+        "sqrt_val_loss": state.best_metric,
         "file": output_path,
     }
-    return checkpoints, history
+    return checkpoints, state.history

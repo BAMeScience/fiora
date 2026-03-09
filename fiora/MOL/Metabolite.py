@@ -18,7 +18,6 @@ import networkx as nx
 
 from fiora.MOL.constants import (
     DEFAULT_PPM,
-    DEFAULT_MODES,
     DEFAULT_MODE_MAP,
     ADDUCT_WEIGHTS,
     ORDERED_ELEMENT_LIST_WITH_HYDROGEN,
@@ -27,12 +26,7 @@ from fiora.MOL.constants import (
 from fiora.MOL.mol_graph import (
     mol_to_graph,
     get_adjacency_matrix,
-    get_degree_matrix,
     get_edges,
-    get_identity_matrix,
-    draw_graph,
-    compute_edge_related_helper_matrices,
-    get_helper_matrices_from_edges,
 )
 from fiora.MOL.FragmentationTree import FragmentationTree
 from fiora.GNN.AtomFeatureEncoder import AtomFeatureEncoder
@@ -453,6 +447,13 @@ class Metabolite:
             # Store the element composition for the edge
             self.subgraph_elem_comp[i, :] = edge_elem_comp
 
+    @staticmethod
+    def _edge_count_cols(mode_map, mode_count, ion_mode, break_side):
+        base_col = mode_map[ion_mode]
+        if break_side == "left":
+            return base_col, base_col + mode_count
+        return base_col + mode_count, base_col
+
     def match_fragments_to_peaks(
         self,
         mz_fragments,
@@ -521,13 +522,15 @@ class Metabolite:
             torch.tensor(0.0),
         )
 
+        mode_count = len(mode_map)
         self.edge_count_matrix = torch.zeros(
-            size=(edge_break_labels.shape[0], 2 * len(mode_map)), dtype=torch.float32
+            size=(edge_break_labels.shape[0], 2 * mode_count), dtype=torch.float32
         )
+        get_edge_count_cols = self._edge_count_cols
 
         # Determining edge break probabilites from peak intensities. Multiple edges for the same fragment -> divide by number of edges. Multiple fragments from edge -> add intensities.
         for edge, values in self.edge_intensities:
-            if edge == None:  # precursor
+            if edge is None:  # precursor
                 self.precursor_count += values["intensity"]
                 continue
             edge_index = (
@@ -549,17 +552,11 @@ class Metabolite:
                 .nonzero()
                 .squeeze()
             )
-
-            col = (
-                mode_map[values["ion_mode"]]
-                if values["break_side"] == "left"
-                else mode_map[values["ion_mode"]] + len(mode_map)
+            forward_col, backward_col = get_edge_count_cols(
+                mode_map, mode_count, values["ion_mode"], values["break_side"]
             )
-            self.edge_count_matrix[forward_idx, col] = values["intensity"]
-            col = (col + len(mode_map)) % (
-                2 * len(mode_map)
-            )  # to the other side of the break
-            self.edge_count_matrix[backward_idx, col] = values["intensity"]
+            self.edge_count_matrix[forward_idx, forward_col] += values["intensity"]
+            self.edge_count_matrix[backward_idx, backward_col] += values["intensity"]
 
         # "bond_features_one_hot",
         # Compile probability vectors

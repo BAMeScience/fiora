@@ -122,6 +122,34 @@ fiora-train ... --history-out checkpoints/fiora_history.json
 `pin_memory` is enabled automatically on CUDA; you can override with `--pin-memory` or `--no-pin-memory`.
 `--num-workers` is used for both DataLoader workers and parallel preprocessing (thread-based metabolite graph/peak matching setup) in the training CLI.
 
+For stronger cosine performance, a common setup is:
+
+```bash
+# Stage 1
+fiora-train \
+  -i resources/data/msnlib/library.csv \
+  -o checkpoints/fiora_stage1.pt \
+  --device cuda:0 \
+  --instruments HCD \
+  --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-" \
+  --hidden-dimension 384 \
+  --residual-connections \
+  --no-layer-stacking
+
+# Stage 2 (optional continuation)
+fiora-train \
+  -i resources/data/msnlib/library.csv \
+  -o checkpoints/fiora.pt \
+  --resume checkpoints/fiora_stage1.pt \
+  --device cuda:0 \
+  --instruments HCD \
+  --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-" \
+  --loss weighted_mse \
+  --y-label compiled_probsSQRT \
+  --learning-rate 5e-5 \
+  --epochs 30
+```
+
 ### Model Evaluation CLI
 
 You can evaluate a trained checkpoint on validation/test splits with:
