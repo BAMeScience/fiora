@@ -1,8 +1,10 @@
 # from modules.MOL.FragmentationTree import FragmentationTree
-from fiora.MOL.constants import PPM, DEFAULT_PPM, MIN_ABS_TOLERANCE
-from typing import Literal
-import numpy as np
 import copy
+from typing import Literal
+
+import numpy as np
+
+from fiora.MOL.constants import DEFAULT_PPM, MIN_ABS_TOLERANCE, PPM
 
 
 def do_mz_values_match(
@@ -42,37 +44,37 @@ def match_fragment_lists(mz_list, other_mz_list, tolerance=None):
     return uniques, multiples, unidentified
 
 
-def normalize_spectrum(spec, type: Literal["max_intensity", "norm"] = "norm"):
-    if type == "max_intensity":
-        maximum = max(spec["intensity"])
-        spec["intensity"] = [i / maximum for i in spec["intensity"]]
-    elif type == "norm":
-        spec["intensity"] = list(
-            np.array(spec["intensity"]) / np.linalg.norm(spec["intensity"])
+def normalize_spectrum(spec, type: Literal['max_intensity', 'norm'] = 'norm'):
+    if type == 'max_intensity':
+        maximum = max(spec['intensity'])
+        spec['intensity'] = [i / maximum for i in spec['intensity']]
+    elif type == 'norm':
+        spec['intensity'] = list(
+            np.array(spec['intensity']) / np.linalg.norm(spec['intensity'])
         )
     else:
-        raise ValueError("Unknown type of normalization")
+        raise ValueError('Unknown type of normalization')
 
 
 def merge_annotated_spectrum(spec1, spec2):
     spec1 = copy.deepcopy(spec1)
-    spec2_red = {"mz": [], "intensity": [], "annotation": []}
-    for i, mz2 in enumerate(spec2["mz"]):
+    spec2_red = {'mz': [], 'intensity': [], 'annotation': []}
+    for i, mz2 in enumerate(spec2['mz']):
         merged_peak = False
-        if mz2 in spec1["mz"]:
-            for j, mz1 in enumerate(spec1["mz"]):
-                if mz1 == mz2 and spec1["annotation"][j] == spec2["annotation"][i]:
-                    spec1["intensity"][j] += spec2["intensity"][i]
+        if mz2 in spec1['mz']:
+            for j, mz1 in enumerate(spec1['mz']):
+                if mz1 == mz2 and spec1['annotation'][j] == spec2['annotation'][i]:
+                    spec1['intensity'][j] += spec2['intensity'][i]
                     merged_peak = True
                     break
         if not merged_peak:
-            spec2_red["mz"] += [spec2["mz"][i]]
-            spec2_red["intensity"] += [spec2["intensity"][i]]
-            spec2_red["annotation"] += [spec2["annotation"][i]]
+            spec2_red['mz'] += [spec2['mz'][i]]
+            spec2_red['intensity'] += [spec2['intensity'][i]]
+            spec2_red['annotation'] += [spec2['annotation'][i]]
 
-    spec1["mz"] += spec2_red["mz"]
-    spec1["intensity"] += spec2_red["intensity"]
-    spec1["annotation"] += spec2_red["annotation"]
+    spec1['mz'] += spec2_red['mz']
+    spec1['intensity'] += spec2_red['intensity']
+    spec1['annotation'] += spec2_red['annotation']
 
     return spec1
 
@@ -81,24 +83,24 @@ def merge_spectrum(spec1, spec2, merge_tolerance: float = 0.0):
     spec1 = copy.deepcopy(spec1)
     if merge_tolerance > 0.01:
         raise Warning(
-            "Merging peaks recommended only for very small tolerances. Peak merging has mainly a visual impact is not needed for computation."
+            'Merging peaks recommended only for very small tolerances. Peak merging has mainly a visual impact is not needed for computation.'
         )
-    spec2_red = {"mz": [], "intensity": []}
-    for i, mz2 in enumerate(spec2["mz"]):
+    spec2_red = {'mz': [], 'intensity': []}
+    for i, mz2 in enumerate(spec2['mz']):
         merged_peak = False
 
-        for j, mz1 in enumerate(spec1["mz"]):
+        for j, mz1 in enumerate(spec1['mz']):
             if abs(mz1 - mz2) <= merge_tolerance:
-                spec1["intensity"][j] += spec2["intensity"][i]
-                spec1["mz"][j] = (mz1 + mz2) / 2
+                spec1['intensity'][j] += spec2['intensity'][i]
+                spec1['mz'][j] = (mz1 + mz2) / 2
                 merged_peak = True
                 break
         if not merged_peak:
-            spec2_red["mz"] += [spec2["mz"][i]]
-            spec2_red["intensity"] += [spec2["intensity"][i]]
+            spec2_red['mz'] += [spec2['mz'][i]]
+            spec2_red['intensity'] += [spec2['intensity'][i]]
 
-    spec1["mz"] += spec2_red["mz"]
-    spec1["intensity"] += spec2_red["intensity"]
+    spec1['mz'] += spec2_red['mz']
+    spec1['intensity'] += spec2_red['intensity']
 
     return spec1
 

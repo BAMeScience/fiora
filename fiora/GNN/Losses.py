@@ -18,8 +18,8 @@ class WeightedMSELoss(torch.nn.Module):
 class WeightedMSEMetric(Metric):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.add_state("sum", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state('sum', default=torch.tensor(0.0), dist_reduce_fx='sum')
+        self.add_state('numel', default=torch.tensor(0), dist_reduce_fx='sum')
 
     def update(self, preds: Tensor, target: Tensor, weight: Tensor) -> None:
         self.sum += (weight * (preds - target) ** 2).sum()
@@ -44,8 +44,8 @@ class WeightedMAELoss(torch.nn.Module):
 class WeightedMAEMetric(Metric):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.add_state("sum", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state('sum', default=torch.tensor(0.0), dist_reduce_fx='sum')
+        self.add_state('numel', default=torch.tensor(0), dist_reduce_fx='sum')
 
     def update(self, preds: Tensor, target: Tensor, weight: Tensor) -> None:
         self.sum += (weight * torch.abs(preds - target)).sum()
@@ -61,7 +61,7 @@ class GraphwiseKLLoss(torch.nn.Module):
     def __init__(
         self,
         eps: float = 1e-8,
-        reduction: str = "mean",
+        reduction: str = 'mean',
         normalize_targets: bool = True,
         normalize_pred: bool = True,
     ):
@@ -79,7 +79,7 @@ class GraphwiseKLLoss(torch.nn.Module):
         weight: torch.Tensor = None,
     ):
         assert segment_ptr.dim() == 1 and segment_ptr.numel() >= 2, (
-            "segment_ptr must be 1D with at least 2 entries"
+            'segment_ptr must be 1D with at least 2 entries'
         )
         num_graphs = segment_ptr.numel() - 1
 
@@ -105,9 +105,9 @@ class GraphwiseKLLoss(torch.nn.Module):
             total = total + kl
             total_el += r - l
 
-        if self.reduction == "sum":
+        if self.reduction == 'sum':
             return total
-        elif self.reduction == "mean_edge":
+        elif self.reduction == 'mean_edge':
             return total / max(total_el, 1)
         else:
             return total / max(num_graphs, 1)
@@ -117,7 +117,7 @@ class GraphwiseKLLossMetric(Metric):
     def __init__(
         self,
         eps: float = 1e-8,
-        reduction: str = "mean",
+        reduction: str = 'mean',
         normalize_targets: bool = True,
         normalize_pred: bool = True,
         **kwargs,
@@ -127,16 +127,16 @@ class GraphwiseKLLossMetric(Metric):
         self.reduction = reduction
         self.normalize_targets = normalize_targets
         self.normalize_pred = normalize_pred
-        self.add_state("total", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state('total', default=torch.tensor(0.0), dist_reduce_fx='sum')
         self.add_state(
-            "total_graphs",
+            'total_graphs',
             default=torch.tensor(0, dtype=torch.long),
-            dist_reduce_fx="sum",
+            dist_reduce_fx='sum',
         )
         self.add_state(
-            "total_elements",
+            'total_elements',
             default=torch.tensor(0, dtype=torch.long),
-            dist_reduce_fx="sum",
+            dist_reduce_fx='sum',
         )
 
     def update(
@@ -180,9 +180,9 @@ class GraphwiseKLLossMetric(Metric):
         self.total_elements += torch.tensor(total_el, device=self.total_elements.device)
 
     def compute(self) -> Tensor:
-        if self.reduction == "sum":
+        if self.reduction == 'sum':
             return self.total
-        elif self.reduction == "mean_edge":
+        elif self.reduction == 'mean_edge':
             return self.total / torch.clamp(self.total_elements.float(), min=1.0)
         else:
             return self.total / torch.clamp(self.total_graphs.float(), min=1.0)

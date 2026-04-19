@@ -1,6 +1,5 @@
 import numpy as np
 
-
 from fiora.MOL.constants import DEFAULT_DALTON
 
 
@@ -57,14 +56,14 @@ def spectral_cosine(
     with_bias=False,
     remove_mz: float | None = None,
 ):
-    mz_map = create_mz_map(spec["mz"], spec_ref["mz"], tolerance=tolerance)
+    mz_map = create_mz_map(spec['mz'], spec_ref['mz'], tolerance=tolerance)
     vec, vec_ref = np.zeros(len(mz_map)), np.zeros(len(mz_map))
 
-    bins = list(map(mz_map.get, spec["mz"]))
-    bins_ref = list(map(mz_map.get, spec_ref["mz"]))
+    bins = list(map(mz_map.get, spec['mz']))
+    bins_ref = list(map(mz_map.get, spec_ref['mz']))
 
-    np.add.at(vec, bins, spec["intensity"])  # vec.put(bins, spec["intensity"])
-    np.add.at(vec_ref, bins_ref, spec_ref["intensity"])
+    np.add.at(vec, bins, spec['intensity'])  # vec.put(bins, spec["intensity"])
+    np.add.at(vec_ref, bins_ref, spec_ref['intensity'])
 
     # zero out specific mz value, e.g. precursor m/z
     if remove_mz:
@@ -91,14 +90,14 @@ def spectral_cosine(
 def spectral_reflection_cosine(
     spec, spec_ref, tolerance=DEFAULT_DALTON, transform=None, with_bias=False
 ):
-    mz_map = create_mz_map(spec["mz"], spec_ref["mz"], tolerance=tolerance)
+    mz_map = create_mz_map(spec['mz'], spec_ref['mz'], tolerance=tolerance)
     vec, vec_ref = np.zeros(len(mz_map)), np.zeros(len(mz_map))
 
-    bins = list(map(mz_map.get, spec["mz"]))
-    bins_ref = list(map(mz_map.get, spec_ref["mz"]))
+    bins = list(map(mz_map.get, spec['mz']))
+    bins_ref = list(map(mz_map.get, spec_ref['mz']))
 
-    np.add.at(vec, bins, spec["intensity"])  # vec.put(bins, spec["intensity"])
-    np.add.at(vec_ref, bins_ref, spec_ref["intensity"])
+    np.add.at(vec, bins, spec['intensity'])  # vec.put(bins, spec["intensity"])
+    np.add.at(vec_ref, bins_ref, spec_ref['intensity'])
 
     # Reflection score: Remove values that are not matched with the reference values
     unmatched_bins = [b for b in bins if b not in bins_ref]
@@ -119,23 +118,23 @@ def spectral_reflection_cosine(
 def reweighted_dot(
     spec, spec_ref, int_pow=0.5, mz_pow=0.5, tolerance=DEFAULT_DALTON, with_bias=False
 ):
-    mz_map = create_mz_map(spec["mz"], spec_ref["mz"], tolerance=tolerance)
+    mz_map = create_mz_map(spec['mz'], spec_ref['mz'], tolerance=tolerance)
     vec, vec_ref = np.zeros(len(mz_map)), np.zeros(len(mz_map))
 
-    bins = list(map(mz_map.get, spec["mz"]))
-    bins_ref = list(map(mz_map.get, spec_ref["mz"]))
+    bins = list(map(mz_map.get, spec['mz']))
+    bins_ref = list(map(mz_map.get, spec_ref['mz']))
 
-    spec["mz_int"] = [
-        np.power(spec["intensity"][i], int_pow) * np.power(mz, mz_pow)
-        for i, mz in enumerate(spec["mz"])
+    spec['mz_int'] = [
+        np.power(spec['intensity'][i], int_pow) * np.power(mz, mz_pow)
+        for i, mz in enumerate(spec['mz'])
     ]
-    spec_ref["mz_int"] = [
-        np.power(spec_ref["intensity"][i], int_pow) * np.power(mz, mz_pow)
-        for i, mz in enumerate(spec_ref["mz"])
+    spec_ref['mz_int'] = [
+        np.power(spec_ref['intensity'][i], int_pow) * np.power(mz, mz_pow)
+        for i, mz in enumerate(spec_ref['mz'])
     ]
 
-    np.add.at(vec, bins, spec["mz_int"])
-    np.add.at(vec_ref, bins_ref, spec_ref["mz_int"])
+    np.add.at(vec, bins, spec['mz_int'])
+    np.add.at(vec_ref, bins_ref, spec_ref['mz_int'])
 
     cos = cosine(vec, vec_ref)
     if with_bias:

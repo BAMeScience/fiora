@@ -1,28 +1,30 @@
+from typing import Dict, Literal
+
+import numpy as np
+import pandas as pd
 import torch
 import torch_geometric as geom
-import pandas as pd
-import numpy as np
-from typing import Literal, Dict
+
+from fiora.MOL.constants import DEFAULT_MODE_MAP
 from fiora.MOL.Metabolite import Metabolite
 from fiora.MS.spectral_scores import (
+    reweighted_dot,
     spectral_cosine,
     spectral_reflection_cosine,
-    reweighted_dot,
 )
-from fiora.MOL.constants import DEFAULT_MODE_MAP
 
 
 class SimulationFramework:
-    def __init__(self, base_model: torch.nn.Module | None = None, dev: str = "cpu"):
+    def __init__(self, base_model: torch.nn.Module | None = None, dev: str = 'cpu'):
         self.base_model = base_model
         self.dev = dev
         self.mode_map = None
 
     def __repr__(self):
-        return "Simulation framework for MS/MS spectrum generation"
+        return 'Simulation framework for MS/MS spectrum generation'
 
     def __str__(self):
-        return "Simulation framework for MS/MS spectrum generation"
+        return 'Simulation framework for MS/MS spectrum generation'
 
     def set_mode_mapper(self, mode_map):
         self.mode_map = mode_map
@@ -38,8 +40,8 @@ class SimulationFramework:
 
         logits = model(
             data,
-            with_RT=hasattr(model, "rt_module"),
-            with_CCS=hasattr(model, "ccs_module"),
+            with_RT=hasattr(model, 'rt_module'),
+            with_CCS=hasattr(model, 'ccs_module'),
         )
         return logits
 
@@ -47,25 +49,25 @@ class SimulationFramework:
         self,
         df: pd.DataFrame,
         model: torch.nn.Module | None = None,
-        attr_name: str = "",
+        attr_name: str = '',
         as_batch: bool = True,
     ):
         with torch.no_grad():
             model.eval()
 
             for i, d in df.iterrows():
-                metabolite = d["Metabolite"]
+                metabolite = d['Metabolite']
                 prediction = self.predict_metabolite_property(
                     metabolite, model=model, as_batch=as_batch
                 )
-                if hasattr(model, "rt_module"):
+                if hasattr(model, 'rt_module'):
                     setattr(
-                        metabolite, attr_name + "_pred", prediction["fragment_probs"]
+                        metabolite, attr_name + '_pred', prediction['fragment_probs']
                     )
-                    setattr(metabolite, "RT_pred", prediction["rt"].squeeze())
+                    setattr(metabolite, 'RT_pred', prediction['rt'].squeeze())
                 else:
                     setattr(
-                        metabolite, attr_name + "_pred", prediction["fragment_probs"]
+                        metabolite, attr_name + '_pred', prediction['fragment_probs']
                     )
         return
 
@@ -73,10 +75,10 @@ class SimulationFramework:
         self,
         metabolite: Metabolite,
         pred_label: str,
-        precursor_mode: Literal["[M+H]+", "[M-H]-"] = "[M+H]+",
+        precursor_mode: Literal['[M+H]+', '[M-H]-'] = '[M+H]+',
         min_intensity: float = 0.001,
         merge_fragment_duplicates: bool = True,
-        transform_prob: str = "None",
+        transform_prob: str = 'None',
     ):
 
         if not self.mode_map:
@@ -87,16 +89,16 @@ class SimulationFramework:
         edge_map = metabolite.fragmentation_tree.edge_map
 
         sim_probs = getattr(metabolite, pred_label)
-        sim_peaks = {"mz": [], "intensity": [], "annotation": []}
+        sim_peaks = {'mz': [], 'intensity': [], 'annotation': []}
 
         precursor_prob = sim_probs[-1].tolist()
         precursor = edge_map[None]
 
-        sim_peaks["mz"].append(
+        sim_peaks['mz'].append(
             precursor.mz[precursor_mode]
         )  # TODO allow multiple ion modes of precursor
-        sim_peaks["intensity"].append(precursor_prob)
-        sim_peaks["annotation"].append(precursor.smiles + "//" + precursor_mode)
+        sim_peaks['intensity'].append(precursor_prob)
+        sim_peaks['annotation'].append(precursor.smiles + '//' + precursor_mode)
 
         edge_probs = sim_probs[:-2].unflatten(-1, sizes=(-1, len(mode_map) * 2))
 
@@ -107,7 +109,7 @@ class SimulationFramework:
             if not frags:
                 continue
 
-            lf = frags.get("left")
+            lf = frags.get('left')
             if lf:
                 for mode, idx in mode_map.items():
                     intensity = edge_probs[i, idx].tolist()
@@ -115,30 +117,30 @@ class SimulationFramework:
                         mz = lf.mz[mode]
                         mode_str = (
                             mode
-                            if precursor_mode == "[M+H]+"
-                            else mode.replace("]+", "]-")
+                            if precursor_mode == '[M+H]+'
+                            else mode.replace(']+', ']-')
                         )
-                        annotation = lf.smiles + "//" + mode_str
+                        annotation = lf.smiles + '//' + mode_str
                         merged = False
                         if merge_fragment_duplicates and (
-                            mz in sim_peaks["mz"]
+                            mz in sim_peaks['mz']
                         ):  # if exact mz value exists already
-                            for j, mzx in enumerate(sim_peaks["mz"]):
+                            for j, mzx in enumerate(sim_peaks['mz']):
                                 if (
                                     mz == mzx
-                                    and annotation == sim_peaks["annotation"][j]
+                                    and annotation == sim_peaks['annotation'][j]
                                 ):  # check mz and annotation
-                                    sim_peaks["intensity"][j] += (
+                                    sim_peaks['intensity'][j] += (
                                         intensity  # and intensity if exact same fragments
                                     )
                                     merged = True
                                     break
                         if merged:
                             continue
-                        sim_peaks["mz"].append(mz)
-                        sim_peaks["intensity"].append(intensity)
-                        sim_peaks["annotation"].append(annotation)
-            rf = frags.get("right")
+                        sim_peaks['mz'].append(mz)
+                        sim_peaks['intensity'].append(intensity)
+                        sim_peaks['annotation'].append(annotation)
+            rf = frags.get('right')
             if rf:
                 for mode, idx in mode_map.items():
                     idx = (idx + len(mode_map)) % (2 * len(mode_map))
@@ -148,42 +150,42 @@ class SimulationFramework:
                         mz = rf.mz[mode]
                         mode_str = (
                             mode
-                            if precursor_mode == "[M+H]+"
-                            else mode.replace("]+", "]-")
+                            if precursor_mode == '[M+H]+'
+                            else mode.replace(']+', ']-')
                         )
-                        annotation = rf.smiles + "//" + mode_str
+                        annotation = rf.smiles + '//' + mode_str
                         merged = False
-                        if merge_fragment_duplicates and (mz in sim_peaks["mz"]):
-                            for j, mzx in enumerate(sim_peaks["mz"]):
+                        if merge_fragment_duplicates and (mz in sim_peaks['mz']):
+                            for j, mzx in enumerate(sim_peaks['mz']):
                                 if (
                                     mz == mzx
-                                    and annotation == sim_peaks["annotation"][j]
+                                    and annotation == sim_peaks['annotation'][j]
                                 ):
-                                    sim_peaks["intensity"][j] += (
+                                    sim_peaks['intensity'][j] += (
                                         intensity  # and intensity if exact same fragments
                                     )
                                     merged = True
                                     break
                         if merged:
                             continue
-                        sim_peaks["mz"].append(mz)
-                        sim_peaks["intensity"].append(intensity)
-                        sim_peaks["annotation"].append(annotation)
+                        sim_peaks['mz'].append(mz)
+                        sim_peaks['intensity'].append(intensity)
+                        sim_peaks['annotation'].append(annotation)
 
-        if transform_prob == "square":
-            max_prob = max(sim_peaks["intensity"]) ** 2
-            for i in range(len(sim_peaks["intensity"])):
-                sim_peaks["intensity"][i] = sim_peaks["intensity"][i] ** 2 / max_prob
+        if transform_prob == 'square':
+            max_prob = max(sim_peaks['intensity']) ** 2
+            for i in range(len(sim_peaks['intensity'])):
+                sim_peaks['intensity'][i] = sim_peaks['intensity'][i] ** 2 / max_prob
 
         combined = sorted(
-            zip(sim_peaks["mz"], sim_peaks["intensity"], sim_peaks["annotation"]),
+            zip(sim_peaks['mz'], sim_peaks['intensity'], sim_peaks['annotation']),
             key=lambda t: t[0],
             reverse=True,
         )
         mz, inten, annot = zip(*combined)
-        sim_peaks["mz"] = list(mz)
-        sim_peaks["intensity"] = list(inten)
-        sim_peaks["annotation"] = list(annot)
+        sim_peaks['mz'] = list(mz)
+        sim_peaks['intensity'] = list(inten)
+        sim_peaks['annotation'] = list(annot)
 
         return sim_peaks
 
@@ -191,7 +193,7 @@ class SimulationFramework:
         self,
         metabolite: Metabolite,
         model: torch.nn.Module | None = None,
-        base_attr_name: str = "compiled_probsALL",
+        base_attr_name: str = 'compiled_probsALL',
         query_peaks: Dict | None = None,
         as_batch: bool = True,
         min_intensity: float = 0.001,
@@ -201,25 +203,25 @@ class SimulationFramework:
         )
         stats = {}
 
-        if "rt" in prediction.keys():
-            stats["RT_pred"] = prediction["rt"].squeeze().tolist()
-        if "ccs" in prediction.keys():
-            stats["CCS_pred"] = prediction["ccs"].squeeze().tolist()
+        if 'rt' in prediction.keys():
+            stats['RT_pred'] = prediction['rt'].squeeze().tolist()
+        if 'ccs' in prediction.keys():
+            stats['CCS_pred'] = prediction['ccs'].squeeze().tolist()
 
-        setattr(metabolite, base_attr_name + "_pred", prediction["fragment_probs"])
-        training_label = model.model_params.get("training_label")
+        setattr(metabolite, base_attr_name + '_pred', prediction['fragment_probs'])
+        training_label = model.model_params.get('training_label')
         transform_prob = (
-            "square"
+            'square'
             if (
-                training_label == "compiled_probsSQRT"
-                or (training_label is None and base_attr_name == "compiled_probsSQRT")
+                training_label == 'compiled_probsSQRT'
+                or (training_label is None and base_attr_name == 'compiled_probsSQRT')
             )
-            else "None"
+            else 'None'
         )
-        stats["sim_peaks"] = self.simulate_spectrum(
+        stats['sim_peaks'] = self.simulate_spectrum(
             metabolite,
-            base_attr_name + "_pred",
-            precursor_mode=metabolite.metadata["precursor_mode"],
+            base_attr_name + '_pred',
+            precursor_mode=metabolite.metadata['precursor_mode'],
             transform_prob=transform_prob,
             min_intensity=min_intensity,
         )
@@ -228,52 +230,52 @@ class SimulationFramework:
         if hasattr(metabolite, base_attr_name):
             groundtruth = getattr(metabolite, base_attr_name).to(self.dev)
 
-            stats["cosine_similarity"] = torch.nn.functional.cosine_similarity(
-                prediction["fragment_probs"], groundtruth, dim=0
+            stats['cosine_similarity'] = torch.nn.functional.cosine_similarity(
+                prediction['fragment_probs'], groundtruth, dim=0
             ).tolist()  # TODO
-            stats["kl_div"] = torch.nn.functional.kl_div(
-                torch.log(prediction["fragment_probs"]), groundtruth, reduction="sum"
+            stats['kl_div'] = torch.nn.functional.kl_div(
+                torch.log(prediction['fragment_probs']), groundtruth, reduction='sum'
             ).tolist()
 
-        if "RT_pred" in stats.keys() and "retention_time" in metabolite.metadata.keys():
-            stats["RT_dif"] = abs(
-                stats["RT_pred"] - metabolite.metadata["retention_time"]
+        if 'RT_pred' in stats.keys() and 'retention_time' in metabolite.metadata.keys():
+            stats['RT_dif'] = abs(
+                stats['RT_pred'] - metabolite.metadata['retention_time']
             )
 
         if query_peaks:
-            stats["spectral_cosine"], stats["spectral_bias"] = spectral_cosine(
-                query_peaks, stats["sim_peaks"], with_bias=True
+            stats['spectral_cosine'], stats['spectral_bias'] = spectral_cosine(
+                query_peaks, stats['sim_peaks'], with_bias=True
             )
-            stats["spectral_sqrt_cosine"], stats["spectral_sqrt_bias"] = (
+            stats['spectral_sqrt_cosine'], stats['spectral_sqrt_bias'] = (
                 spectral_cosine(
-                    query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True
+                    query_peaks, stats['sim_peaks'], transform=np.sqrt, with_bias=True
                 )
             )
             (
-                stats["spectral_sqrt_cosine_wo_prec"],
-                stats["spectral_sqrt_bias_wo_prec"],
+                stats['spectral_sqrt_cosine_wo_prec'],
+                stats['spectral_sqrt_bias_wo_prec'],
             ) = spectral_cosine(
                 query_peaks,
-                stats["sim_peaks"],
+                stats['sim_peaks'],
                 transform=np.sqrt,
                 remove_mz=metabolite.get_theoretical_precursor_mz(
-                    ion_type=metabolite.metadata["precursor_mode"]
+                    ion_type=metabolite.metadata['precursor_mode']
                 ),
                 with_bias=True,
             )
-            stats["spectral_sqrt_cosine_avg"], stats["spectral_sqrt_bias_avg"] = (
-                (stats["spectral_sqrt_cosine"] + stats["spectral_sqrt_cosine_wo_prec"])
+            stats['spectral_sqrt_cosine_avg'], stats['spectral_sqrt_bias_avg'] = (
+                (stats['spectral_sqrt_cosine'] + stats['spectral_sqrt_cosine_wo_prec'])
                 / 2.0,
-                (stats["spectral_sqrt_bias"] + stats["spectral_sqrt_bias_wo_prec"])
+                (stats['spectral_sqrt_bias'] + stats['spectral_sqrt_bias_wo_prec'])
                 / 2.0,
             )
-            stats["spectral_refl_cosine"], stats["spectral_refl_bias"] = (
+            stats['spectral_refl_cosine'], stats['spectral_refl_bias'] = (
                 spectral_reflection_cosine(
-                    query_peaks, stats["sim_peaks"], transform=np.sqrt, with_bias=True
+                    query_peaks, stats['sim_peaks'], transform=np.sqrt, with_bias=True
                 )
             )
-            stats["steins_cosine"], stats["steins_bias"] = reweighted_dot(
-                query_peaks, stats["sim_peaks"], int_pow=0.5, mz_pow=0.5, with_bias=True
+            stats['steins_cosine'], stats['steins_bias'] = reweighted_dot(
+                query_peaks, stats['sim_peaks'], int_pow=0.5, mz_pow=0.5, with_bias=True
             )
         return stats
 
@@ -281,12 +283,12 @@ class SimulationFramework:
         self,
         df: pd.DataFrame,
         model: torch.nn.Module | None = None,
-        base_attr_name: str = "compiled_probsALL",
-        suffix: str = "",
+        base_attr_name: str = 'compiled_probsALL',
+        suffix: str = '',
         groundtruth=True,
         min_intensity: float = 0.001,
         progress: bool = False,
-        progress_desc: str = "Evaluate",
+        progress_desc: str = 'Evaluate',
     ):
 
         with torch.no_grad():
@@ -302,12 +304,12 @@ class SimulationFramework:
                     pass
 
             for i, data in iterator:
-                metabolite = data["Metabolite"]
+                metabolite = data['Metabolite']
                 stats = self.simulate_and_score(
                     metabolite,
                     model,
                     base_attr_name,
-                    query_peaks=data["peaks"] if groundtruth else None,
+                    query_peaks=data['peaks'] if groundtruth else None,
                     min_intensity=min_intensity,
                 )
                 df = pd.concat(
@@ -320,7 +322,7 @@ class SimulationFramework:
                         setattr(metabolite, key + suffix, value)
                     else:
                         raise Warning(
-                            "User Warning: Attempting to add data to non-existing column simulate_all().\n\tSolve by adding column with pd.concat()"
+                            'User Warning: Attempting to add data to non-existing column simulate_all().\n\tSolve by adding column with pd.concat()'
                         )
 
         return df
@@ -330,6 +332,7 @@ class SimulationFramework:
     ):
 
         import matplotlib.pyplot as plt
+
         import fiora.visualization.spectrum_visualizer as sv
 
         if with_mol:
@@ -337,7 +340,7 @@ class SimulationFramework:
                 1,
                 2,
                 figsize=(12.8, 4.2),
-                gridspec_kw={"width_ratios": [1, 3]},
+                gridspec_kw={'width_ratios': [1, 3]},
                 sharey=False,
             )
             _ = metabolite.draw(ax=axs[0])
@@ -348,11 +351,11 @@ class SimulationFramework:
             metabolite.compiled_validation_mask, metabolite.compiled_forward_mask
         )
         probs = getattr(metabolite, label).to(self.dev)[relevant_edge_index]
-        preds = getattr(metabolite, "predicted_" + label).to(self.dev)[
+        preds = getattr(metabolite, 'predicted_' + label).to(self.dev)[
             relevant_edge_index
         ]
 
-        names = [f"e{i}" for i in range(preds.shape[0] - 1)] + ["prec"]
+        names = [f'e{i}' for i in range(preds.shape[0] - 1)] + ['prec']
 
         _ = sv.plot_vector_spectrum(
             probs.tolist(), preds.tolist(), ax=axs[1], names=names

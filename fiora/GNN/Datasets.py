@@ -1,6 +1,6 @@
-import torch
-import pandas as pd
 import numpy as np
+import pandas as pd
+import torch
 from torch.utils.data import Dataset
 
 """
@@ -24,13 +24,13 @@ class AtomAromaticityData(Dataset):
     def __init__(self, df) -> None:
 
         self.X = (
-            df["features"].apply(lambda x: torch.tensor(x, dtype=torch.float32)).values
+            df['features'].apply(lambda x: torch.tensor(x, dtype=torch.float32)).values
         )
         self.A = (
-            df["Atilde"].apply(lambda x: torch.tensor(x, dtype=torch.float32)).values
+            df['Atilde'].apply(lambda x: torch.tensor(x, dtype=torch.float32)).values
         )
         self.y = (
-            df["is_aromatic"]
+            df['is_aromatic']
             .apply(lambda x: torch.tensor(x, dtype=torch.float32))
             .values
             * 1
@@ -48,7 +48,7 @@ class AtomAromaticityData(Dataset):
 
 class SimpleNodeData(Dataset):
     def __init__(
-        self, data: pd.Series, feature_tag: str, label: str, device="cpu"
+        self, data: pd.Series, feature_tag: str, label: str, device='cpu'
     ) -> None:
         self.X = torch.cat(
             data.apply(lambda x: getattr(x, feature_tag).to(device)).to_list()
@@ -67,7 +67,7 @@ class SimpleNodeData(Dataset):
 
 class NodeSingleLabelData(Dataset):
     def __init__(
-        self, data: pd.Series, feature_tag: str, adj_tag: str, label: str, device="cpu"
+        self, data: pd.Series, feature_tag: str, adj_tag: str, label: str, device='cpu'
     ) -> None:
 
         self.X = data.apply(lambda x: getattr(x, feature_tag).to(device)).values
@@ -98,7 +98,7 @@ class EdgeSingleLabelData(Dataset):
         label: str,
         validation_mask_tag: str,
         group_id: str,
-        device="cpu",
+        device='cpu',
     ) -> None:
 
         self.X = data.apply(lambda x: getattr(x, feature_tag).to(device)).values
@@ -189,12 +189,12 @@ def collate_graph_batch(batch):
         adj_mask[i, : num_nodes[i], : num_nodes[i]] = 1
 
     batch_record = {
-        "X": X,
-        "A": A,
-        "y": y,
-        "node_mask": node_mask,
-        "adj_mask": adj_mask,
-        "num_of_nodes": torch.tensor(list(num_nodes)).unsqueeze(dim=1),
+        'X': X,
+        'A': A,
+        'y': y,
+        'node_mask': node_mask,
+        'adj_mask': adj_mask,
+        'num_of_nodes': torch.tensor(list(num_nodes)).unsqueeze(dim=1),
     }
     return batch_record
 
@@ -254,18 +254,18 @@ def collate_graph_edge_batch(batch):
         validation_mask[i, : num_edges[i]] = validation_bits[i].flatten()
 
     batch_record = {
-        "X": X,
-        "A": A,
-        "y": y,
-        "AL": AL,
-        "AR": AR,
-        "node_mask": node_mask,
-        "adj_mask": adj_mask,
-        "y_mask": y_mask,
-        "edge_features": edge_features,
-        "static_features": static_features,
-        "validation_mask": validation_mask,
-        "num_of_nodes": torch.tensor(list(num_nodes)).unsqueeze(dim=1),
-        "num_of_edges": torch.tensor(list(num_edges)).unsqueeze(dim=1),
+        'X': X,
+        'A': A,
+        'y': y,
+        'AL': AL,
+        'AR': AR,
+        'node_mask': node_mask,
+        'adj_mask': adj_mask,
+        'y_mask': y_mask,
+        'edge_features': edge_features,
+        'static_features': static_features,
+        'validation_mask': validation_mask,
+        'num_of_nodes': torch.tensor(list(num_nodes)).unsqueeze(dim=1),
+        'num_of_edges': torch.tensor(list(num_edges)).unsqueeze(dim=1),
     }
     return batch_record

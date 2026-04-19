@@ -1,14 +1,13 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 import torch
 
-import networkx as nx
+node_color_map = {'C': 'gray', 'O': 'red', 'N': 'blue'}
 
-node_color_map = {"C": "gray", "O": "red", "N": "blue"}
+edge_color_map = {'SINGLE': 'black', 'DOUBLE': 'black', 'AROMATIC': 'blue'}
 
-edge_color_map = {"SINGLE": "black", "DOUBLE": "black", "AROMATIC": "blue"}
-
-edge_width_map = {"SINGLE": 1.5, "DOUBLE": 3, "AROMATIC": 3}
+edge_width_map = {'SINGLE': 1.5, 'DOUBLE': 3, 'AROMATIC': 3}
 
 
 def mol_to_graph(mol):
@@ -18,7 +17,7 @@ def mol_to_graph(mol):
         color = (
             node_color_map[atom.GetSymbol()]
             if atom.GetSymbol() in node_color_map.keys()
-            else "black"
+            else 'black'
         )
         G.add_node(
             atom.GetIdx(),
@@ -47,20 +46,20 @@ def draw_graph(G, ax=None, edge_labels=False):
         G,
         ax=ax,
         pos=pos,
-        labels=nx.get_node_attributes(G, "atom_symbol"),
+        labels=nx.get_node_attributes(G, 'atom_symbol'),
         with_labels=True,
-        node_color=list(nx.get_node_attributes(G, "color").values()),
+        node_color=list(nx.get_node_attributes(G, 'color').values()),
         node_size=800,
         # edges=G.edges(),
-        edge_color=[edge_color_map[G[u][v]["bond_type"].name] for u, v in G.edges],
-        width=[edge_width_map[G[u][v]["bond_type"].name] for u, v in G.edges],
+        edge_color=[edge_color_map[G[u][v]['bond_type'].name] for u, v in G.edges],
+        width=[edge_width_map[G[u][v]['bond_type'].name] for u, v in G.edges],
     )
     if edge_labels:
         nx.draw_networkx_edge_labels(
             G,
             pos,
-            edge_labels=dict([((u, v), f"({u}, {v})") for u, v in G.edges]),
-            font_color="red",
+            edge_labels=dict([((u, v), f'({u}, {v})') for u, v in G.edges]),
+            font_color='red',
             ax=ax,
         )
 

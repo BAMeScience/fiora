@@ -1,6 +1,7 @@
-import torch
-from typing import Dict, Literal
 import warnings
+from typing import Dict, Literal
+
+import torch
 
 
 class FeatureEmbedding(torch.nn.Module):
@@ -8,26 +9,26 @@ class FeatureEmbedding(torch.nn.Module):
         self,
         feature_dict: Dict[str, int],
         dim=200,
-        aggregation_type=Literal["concat", "sum"],
+        aggregation_type=Literal['concat', 'sum'],
     ) -> None:
         super().__init__()
 
         self.aggregation_type = aggregation_type
         self.feature_dim = dim
-        if aggregation_type == "concat":
+        if aggregation_type == 'concat':
             num_features = len(feature_dict.keys())
             self.feature_dim = int(dim / num_features)
             self.dim = self.feature_dim * num_features
             if self.dim != dim:
                 warnings.warn(
-                    f"Desired embedding dimension not cleanly dividable by the number of features. Reducing dimension from {dim} to {self.dim}."
+                    f'Desired embedding dimension not cleanly dividable by the number of features. Reducing dimension from {dim} to {self.dim}.'
                 )
-        elif aggregation_type == "sum":
+        elif aggregation_type == 'sum':
             self.dim = dim
             self.feature_dim = dim
         else:
             raise NameError(
-                f"Unknown aggregation type selected. Valid types are {aggregation_type}."
+                f'Unknown aggregation type selected. Valid types are {aggregation_type}.'
             )
         self.embeddings = torch.nn.ModuleList(
             [
@@ -46,9 +47,9 @@ class FeatureEmbedding(torch.nn.Module):
             values = features[:, i]
             node_embeddings.append(embedding(values))
 
-        if self.aggregation_type == "sum":
+        if self.aggregation_type == 'sum':
             embedded_features = torch.sum(torch.stack(node_embeddings, dim=-1), dim=-1)
-        elif self.aggregation_type == "concat":
+        elif self.aggregation_type == 'concat':
             embedded_features = torch.cat(node_embeddings, dim=-1)
 
         if feature_mask is not None:
@@ -62,26 +63,26 @@ class FeatureEmbeddingPacked(torch.nn.Module):
         self,
         feature_dict: Dict[str, int],
         dim=200,
-        aggregation_type=Literal["concat", "sum"],
+        aggregation_type=Literal['concat', 'sum'],
     ) -> None:
         super().__init__()
 
         self.aggregation_type = aggregation_type
         self.feature_dim = dim
-        if aggregation_type == "concat":
+        if aggregation_type == 'concat':
             num_features = len(feature_dict.keys())
             self.feature_dim = int(dim / num_features)
             self.dim = self.feature_dim * num_features
             if self.dim != dim:
                 warnings.warn(
-                    f"Desired embedding dimension not cleanly dividable by the number of features. Reducing dimension from {dim} to {self.dim}."
+                    f'Desired embedding dimension not cleanly dividable by the number of features. Reducing dimension from {dim} to {self.dim}.'
                 )
-        elif aggregation_type == "sum":
+        elif aggregation_type == 'sum':
             self.dim = dim
             self.feature_dim = dim
         else:
             raise NameError(
-                f"Unknown aggregation type selected. Valid types are {aggregation_type}."
+                f'Unknown aggregation type selected. Valid types are {aggregation_type}.'
             )
         self.embeddings = torch.nn.ModuleList(
             [
@@ -100,9 +101,9 @@ class FeatureEmbeddingPacked(torch.nn.Module):
             values = features[:, :, i]
             node_embeddings.append(embedding(values))
 
-        if self.aggregation_type == "sum":
+        if self.aggregation_type == 'sum':
             embedded_features = torch.sum(torch.stack(node_embeddings, dim=-1), dim=-1)
-        elif self.aggregation_type == "concat":
+        elif self.aggregation_type == 'concat':
             embedded_features = torch.cat(node_embeddings, dim=-1)
 
         if feature_mask is not None:

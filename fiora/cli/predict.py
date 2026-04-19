@@ -3,7 +3,7 @@ import argparse
 import importlib.resources as resources
 import warnings
 
-warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings('ignore', category=SyntaxWarning)
 
 import pandas as pd
 from rdkit import RDLogger
@@ -17,78 +17,78 @@ from fiora.GNN.FioraModel import FioraModel
 from fiora.MOL.Metabolite import Metabolite
 from fiora.MS.SimulationFramework import SimulationFramework
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog('rdApp.*')
 warnings.filterwarnings(
-    "ignore", category=UserWarning, message="TypedStorage is deprecated"
+    'ignore', category=UserWarning, message='TypedStorage is deprecated'
 )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="fiora-predict",
+        prog='fiora-predict',
         description=(
-            "Fiora is an in silico fragmentation framework, which predicts peaks and "
-            "simulates tandem mass spectra including features such as retention time "
-            "and collision cross sections. Use this script for spectrum predictions "
-            "with a (pre-)trained model."
+            'Fiora is an in silico fragmentation framework, which predicts peaks and '
+            'simulates tandem mass spectra including features such as retention time '
+            'and collision cross sections. Use this script for spectrum predictions '
+            'with a (pre-)trained model.'
         ),
-        epilog="Disclaimer:\nNo prediction software is perfect. Use with caution.",
+        epilog='Disclaimer:\nNo prediction software is perfect. Use with caution.',
     )
     parser.add_argument(
-        "-i",
-        "--input",
-        help="Input file containing molecular structures (SMILES/InChi) and metadata (.csv file)",
+        '-i',
+        '--input',
+        help='Input file containing molecular structures (SMILES/InChi) and metadata (.csv file)',
         type=str,
         required=True,
     )
     parser.add_argument(
-        "-o",
-        "--output",
-        help="Output file path (.mgf/.msp file)",
+        '-o',
+        '--output',
+        help='Output file path (.mgf/.msp file)',
         type=str,
         required=True,
     )
     parser.add_argument(
-        "--model",
-        help="Path to prediction model (.pt file)",
+        '--model',
+        help='Path to prediction model (.pt file)',
         type=str,
-        default="default",
+        default='default',
     )
     parser.add_argument(
-        "--dev",
-        help="Device to the model. For example cuda:0 for GPU number 0.",
+        '--dev',
+        help='Device to the model. For example cuda:0 for GPU number 0.',
         type=str,
-        default="cpu",
+        default='cpu',
     )
     parser.add_argument(
-        "--min_prob",
-        help="Minimum peak probability to be recorded in the spectrum",
+        '--min_prob',
+        help='Minimum peak probability to be recorded in the spectrum',
         type=float,
         default=0.001,
     )
 
     parser.add_argument(
-        "--rt",
+        '--rt',
         action=argparse.BooleanOptionalAction,
-        help="Predict retention time",
+        help='Predict retention time',
         default=False,
     )
     parser.add_argument(
-        "--ccs",
+        '--ccs',
         action=argparse.BooleanOptionalAction,
-        help="Predict collison cross section",
+        help='Predict collison cross section',
         default=False,
     )
     parser.add_argument(
-        "--annotation",
+        '--annotation',
         action=argparse.BooleanOptionalAction,
-        help="Annotate predicted peaks with SMILES strings",
+        help='Annotate predicted peaks with SMILES strings',
         default=False,
     )
     parser.add_argument(
-        "--debug",
+        '--debug',
         action=argparse.BooleanOptionalAction,
-        help="Receive debug information",
+        help='Receive debug information',
         default=False,
     )
     return parser.parse_args()
@@ -97,36 +97,36 @@ def parse_args() -> argparse.Namespace:
 def update_args_with_model_params(
     args: argparse.Namespace, model_params: dict
 ) -> argparse.Namespace:
-    if "rt_supported" in model_params.keys():
-        if not model_params["rt_supported"] and args.rt:
+    if 'rt_supported' in model_params.keys():
+        if not model_params['rt_supported'] and args.rt:
             print(
-                "Warning: RT prediction is not support by the model. Overwriting user argument to --no-rt.\n"
+                'Warning: RT prediction is not support by the model. Overwriting user argument to --no-rt.\n'
             )
             args.rt = False
-    if "ccs_supported" in model_params.keys():
-        if not model_params["ccs_supported"] and args.ccs:
+    if 'ccs_supported' in model_params.keys():
+        if not model_params['ccs_supported'] and args.ccs:
             print(
-                "Warning: CCS prediction is not support by the model. Overwriting user argument to --no-ccs.\n"
+                'Warning: CCS prediction is not support by the model. Overwriting user argument to --no-ccs.\n'
             )
             args.ccs = False
     return args
 
 
 def print_model_messages(model_params: dict) -> None:
-    if "version" in model_params.keys():
-        print("\n-----Model-----")
-        print(model_params["version"])
-        print("---------------")
-    if "disclaimer" in model_params.keys():
-        dis_msg = model_params["disclaimer"]
-        print(f"\nDisclaimer: {dis_msg}")
+    if 'version' in model_params.keys():
+        print('\n-----Model-----')
+        print(model_params['version'])
+        print('---------------')
+    if 'disclaimer' in model_params.keys():
+        dis_msg = model_params['disclaimer']
+        print(f'\nDisclaimer: {dis_msg}')
 
 
 metadata_key_map = {
-    "name": "Name",
-    "collision_energy": "CE",
-    "instrument": "Instrument_type",
-    "precursor_mode": "Precursor_type",
+    'name': 'Name',
+    'collision_energy': 'CE',
+    'instrument': 'Instrument_type',
+    'precursor_mode': 'Precursor_type',
 }
 
 
@@ -143,103 +143,103 @@ def build_metabolites(df: pd.DataFrame, model_params: dict):
     weight_upper_limit = 1000.0
 
     model_setup_feature_sets = None
-    if "setup_features_categorical_set" in model_params.keys():
-        model_setup_feature_sets = model_params["setup_features_categorical_set"]
+    if 'setup_features_categorical_set' in model_params.keys():
+        model_setup_feature_sets = model_params['setup_features_categorical_set']
 
     node_encoder = AtomFeatureEncoder(
-        feature_list=["symbol", "num_hydrogen", "ring_type"]
+        feature_list=['symbol', 'num_hydrogen', 'ring_type']
     )
-    bond_encoder = BondFeatureEncoder(feature_list=["bond_type", "ring_type"])
-    if model_params["version_number"] == "0.1.0":
+    bond_encoder = BondFeatureEncoder(feature_list=['bond_type', 'ring_type'])
+    if model_params['version_number'] == '0.1.0':
         covariate_features = [
-            "collision_energy",
-            "molecular_weight",
-            "precursor_mode",
-            "instrument",
+            'collision_energy',
+            'molecular_weight',
+            'precursor_mode',
+            'instrument',
         ]
     else:
         covariate_features = [
-            "collision_energy",
-            "molecular_weight",
-            "precursor_mode",
-            "instrument",
-            "element_composition",
+            'collision_energy',
+            'molecular_weight',
+            'precursor_mode',
+            'instrument',
+            'element_composition',
         ]
     setup_encoder = CovariateFeatureEncoder(
         feature_list=covariate_features, sets_overwrite=model_setup_feature_sets
     )
     rt_encoder = CovariateFeatureEncoder(
-        feature_list=["molecular_weight", "precursor_mode", "instrument"],
+        feature_list=['molecular_weight', 'precursor_mode', 'instrument'],
         sets_overwrite=model_setup_feature_sets,
     )
 
-    setup_encoder.normalize_features["collision_energy"]["max"] = ce_upper_limit
-    setup_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit
-    rt_encoder.normalize_features["molecular_weight"]["max"] = weight_upper_limit
+    setup_encoder.normalize_features['collision_energy']['max'] = ce_upper_limit
+    setup_encoder.normalize_features['molecular_weight']['max'] = weight_upper_limit
+    rt_encoder.normalize_features['molecular_weight']['max'] = weight_upper_limit
 
     # Convert SMILES to Metabolites and create structure graphs and fragmentation trees
-    df["Metabolite"] = df["SMILES"].apply(safe_metabolite_creation)
-    invalid_df = df[df["Metabolite"].isna()][["Name", "SMILES"]]
-    df.dropna(subset=["Metabolite"], inplace=True)
+    df['Metabolite'] = df['SMILES'].apply(safe_metabolite_creation)
+    invalid_df = df[df['Metabolite'].isna()][['Name', 'SMILES']]
+    df.dropna(subset=['Metabolite'], inplace=True)
 
-    df["Metabolite"].apply(lambda x: x.create_molecular_structure_graph())
-    df["Metabolite"].apply(
+    df['Metabolite'].apply(lambda x: x.create_molecular_structure_graph())
+    df['Metabolite'].apply(
         lambda x: x.compute_graph_attributes(node_encoder, bond_encoder)
     )
 
     # Map covariate features to dedicated format and encode
-    df["summary"] = df.apply(
+    df['summary'] = df.apply(
         lambda x: {key: x[name] for key, name in metadata_key_map.items()}, axis=1
     )
     df.apply(
-        lambda x: x["Metabolite"].add_metadata(x["summary"], setup_encoder, rt_encoder),
+        lambda x: x['Metabolite'].add_metadata(x['summary'], setup_encoder, rt_encoder),
         axis=1,
     )
 
     # Fragment compounds
-    df["Metabolite"].apply(lambda x: x.fragment_MOL(depth=1))
+    df['Metabolite'].apply(lambda x: x.fragment_MOL(depth=1))
     return df, invalid_df
 
 
 def prepare_output(args, df, model):
-    df["peaks"] = df["sim_peaks"]
-    df["Formula"] = df["Metabolite"].apply(lambda x: x.Formula)
-    df["Precursor_MZ"] = df["Metabolite"].apply(
-        lambda x: x.get_theoretical_precursor_mz(ion_type=x.metadata["precursor_mode"])
+    df['peaks'] = df['sim_peaks']
+    df['Formula'] = df['Metabolite'].apply(lambda x: x.Formula)
+    df['Precursor_MZ'] = df['Metabolite'].apply(
+        lambda x: x.get_theoretical_precursor_mz(ion_type=x.metadata['precursor_mode'])
     )
 
     # Rename certain columns
-    if "RT_pred" in df.columns:
-        df["RETENTIONTIME"] = df["RT_pred"]
-    df["PRECURSOR_MZ"] = df["Precursor_MZ"]
-    df["FORMULA"] = df["Formula"]
-    if "CCS_pred" in df.columns:
-        df["CCS"] = df["CCS_pred"]
+    if 'RT_pred' in df.columns:
+        df['RETENTIONTIME'] = df['RT_pred']
+    df['PRECURSOR_MZ'] = df['Precursor_MZ']
+    df['FORMULA'] = df['Formula']
+    if 'CCS_pred' in df.columns:
+        df['CCS'] = df['CCS_pred']
     version = (
-        model.model_params["version"]
-        if "version" in model.model_params
-        else "(pre-release version v0.0.0)"
+        model.model_params['version']
+        if 'version' in model.model_params
+        else '(pre-release version v0.0.0)'
     )
-    df["Comment"] = f'"In silico generated spectrum by {version}"'
-    df["COMMENT"] = df["Comment"]
+    df['Comment'] = f'"In silico generated spectrum by {version}"'
+    df['COMMENT'] = df['Comment']
 
     # Write output file
-    if args.output.endswith(".msp"):
-        df["Collision_energy"] = df["CE"]
+    if args.output.endswith('.msp'):
+        df['Collision_energy'] = df['CE']
         headers = [
-            "Name",
-            "SMILES",
-            "Formula",
-            "Precursor_MZ",
-            "Precursor_type",
-            "Instrument_type",
-            "Collision_energy",
+            'Name',
+            'SMILES',
+            'Formula',
+            'Precursor_MZ',
+            'Precursor_type',
+            'Instrument_type',
+            'Collision_energy',
         ]
         if args.rt:
-            headers.append("RETENTIONTIME")
+            headers.append('RETENTIONTIME')
         if args.ccs:
-            headers.append("CCS")
-        headers.append("Comment")
+            headers.append('CCS')
+        headers.append('Comment')
         mspWriter.write_msp(
             df,
             path=args.output,
@@ -247,62 +247,62 @@ def prepare_output(args, df, model):
             headers=headers,
             annotation=args.annotation,
         )
-    elif args.output.endswith(".mgf"):
+    elif args.output.endswith('.mgf'):
         headers = [
-            "TITLE",
-            "SMILES",
-            "FORMULA",
-            "PRECURSOR_MZ",
-            "PRECURSORTYPE",
-            "COLLISIONENERGY",
-            "INSTRUMENTTYPE",
+            'TITLE',
+            'SMILES',
+            'FORMULA',
+            'PRECURSOR_MZ',
+            'PRECURSORTYPE',
+            'COLLISIONENERGY',
+            'INSTRUMENTTYPE',
         ]
         if args.rt:
-            headers.append("RETENTIONTIME")
+            headers.append('RETENTIONTIME')
         if args.ccs:
-            headers.append("CCS")
-        headers.append("COMMENT")
+            headers.append('CCS')
+        headers.append('COMMENT')
         mgfWriter.write_mgf(
             df,
             path=args.output,
             write_header=True,
             headers=headers,
             header_map={
-                "TITLE": "Name",
-                "PRECURSORTYPE": "Precursor_type",
-                "INSTRUMENTTYPE": "Instrument_type",
-                "COLLISIONENERGY": "CE",
+                'TITLE': 'Name',
+                'PRECURSORTYPE': 'Precursor_type',
+                'INSTRUMENTTYPE': 'Instrument_type',
+                'COLLISIONENERGY': 'CE',
             },
             annotation=args.annotation,
         )
     else:
         print(
-            f"Warning: Unknown output format {args.output}. Writing results to {args.output}.mgf instead."
+            f'Warning: Unknown output format {args.output}. Writing results to {args.output}.mgf instead.'
         )
-        args.output = args.output + ".mgf"
+        args.output = args.output + '.mgf'
         headers = [
-            "TITLE",
-            "SMILES",
-            "FORMULA",
-            "PRECURSORTYPE",
-            "COLLISIONENERGY",
-            "INSTRUMENTTYPE",
+            'TITLE',
+            'SMILES',
+            'FORMULA',
+            'PRECURSORTYPE',
+            'COLLISIONENERGY',
+            'INSTRUMENTTYPE',
         ]
         if args.rt:
-            headers.append("RETENTIONTIME")
+            headers.append('RETENTIONTIME')
         if args.ccs:
-            headers.append("CCS")
-        headers.append("COMMENT")
+            headers.append('CCS')
+        headers.append('COMMENT')
         mgfWriter.write_mgf(
             df,
             path=args.output,
             write_header=True,
             headers=headers,
             header_map={
-                "TITLE": "Name",
-                "PRECURSORTYPE": "Precursor_type",
-                "INSTRUMENTTYPE": "Instrument_type",
-                "COLLISIONENERGY": "CE",
+                'TITLE': 'Name',
+                'PRECURSORTYPE': 'Precursor_type',
+                'INSTRUMENTTYPE': 'Instrument_type',
+                'COLLISIONENERGY': 'CE',
             },
             annotation=args.annotation,
         )
@@ -311,12 +311,12 @@ def prepare_output(args, df, model):
 def main() -> None:
     args = parse_args()
     if args.debug:
-        print(f"Running fiora prediction with the following parameters: {args}\n")
+        print(f'Running fiora prediction with the following parameters: {args}\n')
 
     # Load model
-    if args.model == "default":
+    if args.model == 'default':
         with resources.as_file(
-            resources.files("fiora.resources.models").joinpath("fiora_OS_v1.0.0.pt")
+            resources.files('fiora.resources.models').joinpath('fiora_OS_v1.0.0.pt')
         ) as model_path:
             args.model = str(model_path)
 
@@ -324,7 +324,7 @@ def main() -> None:
         model = FioraModel.load_from_state_dict(args.model)
     except Exception as exc:
         raise SystemExit(
-            f"Error: Failed loading from model from state dict. Caused by: {exc}."
+            f'Error: Failed loading from model from state dict. Caused by: {exc}.'
         )
 
     print_model_messages(model.model_params)
@@ -343,11 +343,11 @@ def main() -> None:
     df, invalid_df = build_metabolites(df, model.model_params)
     if invalid_df.shape[0] > 0:
         if args.debug:
-            print("Warning: The following input SMILES could not be read or formatted:")
+            print('Warning: The following input SMILES could not be read or formatted:')
             print(invalid_df)
         else:
             print(
-                "Warning: Some SMILES could not be read or formatted. Run with --debug flag for more information."
+                'Warning: Some SMILES could not be read or formatted. Run with --debug flag for more information.'
             )
 
     # Simulate compound fragmentation
@@ -355,8 +355,8 @@ def main() -> None:
 
     # Prepare Output
     prepare_output(args, df, model)
-    print(f"Finished prediction. Exported MS/MS spectra to {args.output}.")
+    print(f'Finished prediction. Exported MS/MS spectra to {args.output}.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

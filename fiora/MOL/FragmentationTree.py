@@ -1,11 +1,10 @@
-from fiora.MOL.mol_graph import mol_to_graph, get_adjacency_matrix, get_edges
-from fiora.MS.ms_utility import do_mz_values_match
-import fiora.MOL.constants as constants
-
 from rdkit import Chem
 from rdkit.Chem import AllChem
-
 from treelib import Tree
+
+import fiora.MOL.constants as constants
+from fiora.MOL.mol_graph import get_adjacency_matrix, get_edges, mol_to_graph
+from fiora.MS.ms_utility import do_mz_values_match
 
 # TODO can a fragment be tied to more than one edge: Yes. TODO see todo case in build_frag_tree
 
@@ -20,15 +19,15 @@ class Fragment:
                 a.GetIsotope() for a in mol.GetAtoms()
             ]  # use isotope info as a proxy for node id
             break_side = (
-                "left"
+                'left'
                 if edge[0] in subgraph
-                else "right"
+                else 'right'
                 if edge[1] in subgraph
-                else "unidentified"
+                else 'unidentified'
             )
-            if break_side == "unidentified":
-                print("ERROR", edge, subgraph, Chem.MolToSmiles(mol))
-                raise ValueError("Unidentified edge in fragment")
+            if break_side == 'unidentified':
+                print('ERROR', edge, subgraph, Chem.MolToSmiles(mol))
+                raise ValueError('Unidentified edge in fragment')
             self.break_sides = [break_side]
             self.subgraphs = [subgraph]
         else:
@@ -51,8 +50,8 @@ class Fragment:
         }
         self.mz.update(
             {
-                mode.replace("]+", "]-"): self.neutral_mass
-                + constants.ADDUCT_WEIGHTS[mode.replace("]+", "]-")]
+                mode.replace(']+', ']-'): self.neutral_mass
+                + constants.ADDUCT_WEIGHTS[mode.replace(']+', ']-')]
                 for mode in self.modes
             }
         )
@@ -63,10 +62,10 @@ class Fragment:
         return self.get_morganFinger() == __o.get_morganFinger()
 
     def __repr__(self):
-        return "<Fragment Object> :: " + self.smiles  # + " " + str(self.mz)
+        return '<Fragment Object> :: ' + self.smiles  # + " " + str(self.mz)
 
     def __str__(self):
-        return "<Fragment Object> :: " + self.smiles  # + " " + str(self.mz)
+        return '<Fragment Object> :: ' + self.smiles  # + " " + str(self.mz)
 
     def num_of_edges(self):
         return len(self.edges)
@@ -100,16 +99,16 @@ class FragmentationTree:
         self.edge_map = {None: Fragment(root_mol)}
 
         self.patt = Chem.MolFromSmarts(
-            "[!$([NH]!@C(=O))&!D1&!$(*#*)]-&!@[!$([NH]!@C(=O))&!D1&!$(*#*)]"
+            '[!$([NH]!@C(=O))&!D1&!$(*#*)]-&!@[!$([NH]!@C(=O))&!D1&!$(*#*)]'
         )
 
     def __repr__(self):
         self.fragmentation_tree.show(idhidden=False)
-        return "<FragmentationTree Object>"
+        return '<FragmentationTree Object>'
 
     def __str__(self):
         self.fragmentation_tree.show(idhidden=False)
-        return "<FragmentationTree Object>"
+        return '<FragmentationTree Object>'
 
     """
     Getter
@@ -242,17 +241,17 @@ class FragmentationTree:
                 does_match, frag_ion = frag.match_peak(mz, tolerance=tolerance)
                 if does_match:
                     if was_peak_matched_already:
-                        matches[mz]["fragments"] += [
+                        matches[mz]['fragments'] += [
                             frag
                         ]  # Report fragment for each edge leading to it
-                        matches[mz]["ion_modes"] += [frag_ion]
+                        matches[mz]['ion_modes'] += [frag_ion]
                     else:
                         matches[mz] = {
-                            "intensity": int_list[i] if int_list else None,
-                            "fragments": [
+                            'intensity': int_list[i] if int_list else None,
+                            'fragments': [
                                 frag
                             ],  # Report fragment for each edge leading to it
-                            "ion_modes": [frag_ion],
+                            'ion_modes': [frag_ion],
                         }
                     was_peak_matched_already = True
 
@@ -261,12 +260,12 @@ class FragmentationTree:
         #     return matches
 
         sum_intensity = sum(
-            [m["intensity"] for mz, m in matches.items() if m["intensity"] is not None]
+            [m['intensity'] for mz, m in matches.items() if m['intensity'] is not None]
         )
         if sum_intensity > 0:
-            for mz in matches.keys():
-                int_value = matches[mz]["intensity"]
-                matches[mz]["relative_intensity"] = (
+            for mz, match in matches.items():
+                int_value = match['intensity']
+                match['relative_intensity'] = (
                     int_value / sum_intensity
                 )  # only considered matched peaks
 
@@ -372,13 +371,13 @@ class FragmentationTree:
         em.RemoveBond(i, j)
 
         if add_dummy_atoms:
-            em.AddAtom(Chem.Atom(0))  #
-            em.AddBond(i, num_atoms, Chem.BondType.SINGLE)  #
-            em.AddAtom(Chem.Atom(0))  #
-            em.AddBond(j, num_atoms + 1, Chem.BondType.SINGLE)  #
+            em.AddAtom(Chem.Atom(0))
+            em.AddBond(i, num_atoms, Chem.BondType.SINGLE)
+            em.AddAtom(Chem.Atom(0))
+            em.AddBond(j, num_atoms + 1, Chem.BondType.SINGLE)
 
         new_mol = em.GetMol()
-        Chem.SanitizeMol(new_mol)  #
+        Chem.SanitizeMol(new_mol)
 
         frags = Chem.GetMolFrags(new_mol, asMols=True)
         return new_mol, frags

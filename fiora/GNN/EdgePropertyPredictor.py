@@ -1,7 +1,7 @@
+from typing import Dict, Literal
+
 import torch
-from typing import Dict
 import torch_geometric.nn as geom_nn
-from typing import Literal
 
 from fiora.MOL.constants import ORDERED_ELEMENT_LIST_WITH_HYDROGEN
 
@@ -16,10 +16,10 @@ class EdgePropertyPredictor(torch.nn.Module):
         dense_depth: int = 0,
         dense_dim: int = None,
         embedding_dim: int = 200,
-        embedding_aggregation_type: str = "concat",
+        embedding_aggregation_type: str = 'concat',
         residual_connections: bool = False,
         subgraph_features: bool = False,
-        pooling_func: Literal["avg", "max"] = "avg",
+        pooling_func: Literal['avg', 'max'] = 'avg',
         input_dropout: float = 0,
         latent_dropout: float = 0,
     ) -> None:
@@ -47,7 +47,7 @@ class EdgePropertyPredictor(torch.nn.Module):
         self.subgraph_features = subgraph_features
         self.pooling_func = (
             geom_nn.global_mean_pool
-            if pooling_func == "avg"
+            if pooling_func == 'avg'
             else geom_nn.global_max_pool
         )
         num_subgraph_features = (
@@ -66,7 +66,7 @@ class EdgePropertyPredictor(torch.nn.Module):
         hidden_dimension = dense_dim if dense_dim is not None else num_features
         if hidden_dimension != num_features and residual_connections:
             raise NotImplementedError(
-                "Residual connections require the hidden dimension to match the input dimension."
+                'Residual connections require the hidden dimension to match the input dimension.'
             )
         for _ in range(dense_depth):
             dense_layers += [torch.nn.Linear(num_features, hidden_dimension)]
@@ -81,7 +81,7 @@ class EdgePropertyPredictor(torch.nn.Module):
         This version includes debug messages to trace tensor shapes.
         """
 
-        src, dst = batch["edge_index"]
+        src, dst = batch['edge_index']
 
         # 1. Node Pair Concatenation
         X_src = X[src]
@@ -129,7 +129,7 @@ class EdgePropertyPredictor(torch.nn.Module):
 
             subgraph_features = torch.cat([pooled_left, pooled_right], dim=1)
             # 3. Final Concatenation with Subgraph Features
-            edge_elem_comp = batch["edge_elem_comp"]
+            edge_elem_comp = batch['edge_elem_comp']
 
             # This is the likely point of failure
             node_pairs = torch.cat(
@@ -144,11 +144,11 @@ class EdgePropertyPredictor(torch.nn.Module):
 
         # Add edge features and static features
         edge_features = batch[
-            "edge_embedding"
+            'edge_embedding'
         ]  # self.edge_embedding(batch["edge_attr"])
         edge_features = self.input_dropout(edge_features)
         X = torch.cat(
-            [X, edge_features, batch["static_edge_features"]], axis=-1
+            [X, edge_features, batch['static_edge_features']], axis=-1
         )  # self.input_dropout(batch["static_edge_features"])
 
         # Apply fully connected layers

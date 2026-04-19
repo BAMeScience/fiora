@@ -33,11 +33,11 @@ def build_loss_kwargs(
         weight_tensor = (
             weight_tensor_override
             if weight_tensor_override is not None
-            else batch["weight_tensor"]
+            else batch['weight_tensor']
         )
-        kwargs["weight"] = weight_tensor if mask is None else weight_tensor[mask]
-    if include_segment_ptr and getattr(loss_fn, "requires_segment_ptr", False):
-        kwargs["segment_ptr"] = y_pred.get("segment_ptr")
+        kwargs['weight'] = weight_tensor if mask is None else weight_tensor[mask]
+    if include_segment_ptr and getattr(loss_fn, 'requires_segment_ptr', False):
+        kwargs['segment_ptr'] = y_pred.get('segment_ptr')
     return kwargs
 
 
@@ -53,19 +53,19 @@ def add_rt_ccs_loss(
     if with_rt:
         kwargs_rt = {}
         if with_weights:
-            kwargs_rt["weight"] = batch["weight"][batch["retention_mask"]]
+            kwargs_rt['weight'] = batch['weight'][batch['retention_mask']]
         loss = loss + loss_fn(
-            y_pred["rt"][batch["retention_mask"]],
-            batch["retention_time"][batch["retention_mask"]],
+            y_pred['rt'][batch['retention_mask']],
+            batch['retention_time'][batch['retention_mask']],
             **kwargs_rt,
         )
     if with_ccs:
         kwargs_ccs = {}
         if with_weights:
-            kwargs_ccs["weight"] = batch["weight"][batch["ccs_mask"]]
+            kwargs_ccs['weight'] = batch['weight'][batch['ccs_mask']]
         loss = loss + loss_fn(
-            y_pred["ccs"][batch["ccs_mask"]],
-            batch["ccs"][batch["ccs_mask"]],
+            y_pred['ccs'][batch['ccs_mask']],
+            batch['ccs'][batch['ccs_mask']],
             **kwargs_ccs,
         )
     return loss
@@ -73,7 +73,7 @@ def add_rt_ccs_loss(
 
 def safe_metric_update(metric, preds, target, kwargs: dict | None = None):
     kwargs = kwargs or {}
-    update = getattr(metric, "update", None)
+    update = getattr(metric, 'update', None)
     if callable(update):
         try:
             update(preds, target, **kwargs)
@@ -90,7 +90,7 @@ def safe_metric_update(metric, preds, target, kwargs: dict | None = None):
 def metric_label_and_value(metric_or_stats, preferred_key: str | None = None):
     stats = (
         metric_or_stats.compute()
-        if hasattr(metric_or_stats, "compute")
+        if hasattr(metric_or_stats, 'compute')
         else metric_or_stats
     )
 
@@ -98,7 +98,7 @@ def metric_label_and_value(metric_or_stats, preferred_key: str | None = None):
         if preferred_key is not None and preferred_key in stats:
             key = preferred_key
         else:
-            for candidate in ("kl", "mse", "mae", "acc"):
+            for candidate in ('kl', 'mse', 'mae', 'acc'):
                 if candidate in stats:
                     key = candidate
                     break
@@ -106,11 +106,11 @@ def metric_label_and_value(metric_or_stats, preferred_key: str | None = None):
                 key = next(iter(stats.keys()))
         value = stats[key]
     else:
-        key = preferred_key or "metric"
+        key = preferred_key or 'metric'
         value = stats
 
-    label = "rmse" if key == "mse" else key
-    if key == "mse":
+    label = 'rmse' if key == 'mse' else key
+    if key == 'mse':
         value = torch.sqrt(value)
     if isinstance(value, torch.Tensor):
         value = float(value.detach().cpu().item())
@@ -120,13 +120,13 @@ def metric_label_and_value(metric_or_stats, preferred_key: str | None = None):
 
 
 def resolve_fabric_runtime(device: str):
-    if device.startswith("cuda"):
-        if ":" in device:
-            return "cuda", [int(device.split(":")[-1])]
-        return "cuda", 1
-    if device.startswith("mps"):
-        return "mps", 1
-    return "cpu", 1
+    if device.startswith('cuda'):
+        if ':' in device:
+            return 'cuda', [int(device.split(':')[-1])]
+        return 'cuda', 1
+    if device.startswith('mps'):
+        return 'mps', 1
+    return 'cpu', 1
 
 
 def seed_everything(seed: int) -> None:
@@ -137,7 +137,7 @@ def seed_everything(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def build_progress_iterator(dataloader, enabled=False, desc=""):
+def build_progress_iterator(dataloader, enabled=False, desc=''):
     if not enabled:
         return dataloader
     try:
@@ -149,7 +149,7 @@ def build_progress_iterator(dataloader, enabled=False, desc=""):
 
 
 def unwrap_model(model):
-    return model.module if hasattr(model, "module") else model
+    return model.module if hasattr(model, 'module') else model
 
 
 def apply_precursor_loss_weight(
@@ -196,9 +196,9 @@ def run_epoch(
     rt_metric: bool,
     optimizer=None,
     use_validation_mask: bool = False,
-    mask_name: str = "validation_mask",
+    mask_name: str = 'validation_mask',
     show_progress: bool = False,
-    progress_desc: str = "",
+    progress_desc: str = '',
     non_blocking_transfer: bool = False,
     precursor_loss_weight: float = 1.0,
 ):
@@ -222,13 +222,13 @@ def run_epoch(
         with torch.set_grad_enabled(is_training):
             y_pred = model(batch, with_RT=with_rt, with_CCS=with_ccs)
             use_weight_vector = with_weights or getattr(
-                loss_fn, "requires_segment_ptr", False
+                loss_fn, 'requires_segment_ptr', False
             )
             weight_tensor = None
             if use_weight_vector:
                 weight_tensor = apply_precursor_loss_weight(
-                    batch["weight_tensor"],
-                    y_pred.get("segment_ptr"),
+                    batch['weight_tensor'],
+                    y_pred.get('segment_ptr'),
                     precursor_loss_weight,
                 )
 
@@ -245,14 +245,14 @@ def run_epoch(
                         weight_tensor_override=weight_tensor,
                     )
                     loss = loss_fn(
-                        y_pred["fragment_probs"][mask],
+                        y_pred['fragment_probs'][mask],
                         batch[y_tag][mask],
                         **kwargs,
                     )
                     if not rt_metric:
                         safe_metric_update(
                             metric,
-                            y_pred["fragment_probs"][mask],
+                            y_pred['fragment_probs'][mask],
                             batch[y_tag][mask],
                             kwargs,
                         )
@@ -260,15 +260,15 @@ def run_epoch(
                         if with_rt:
                             safe_metric_update(
                                 metric,
-                                y_pred["rt"][batch["retention_mask"]],
-                                batch["retention_time"][batch["retention_mask"]],
+                                y_pred['rt'][batch['retention_mask']],
+                                batch['retention_time'][batch['retention_mask']],
                                 {},
                             )
                         if with_ccs:
                             safe_metric_update(
                                 metric,
-                                y_pred["ccs"][batch["ccs_mask"]],
-                                batch["ccs"][batch["ccs_mask"]],
+                                y_pred['ccs'][batch['ccs_mask']],
+                                batch['ccs'][batch['ccs_mask']],
                                 {},
                             )
                     loss = add_rt_ccs_loss(
@@ -292,24 +292,24 @@ def run_epoch(
                 include_segment_ptr=True,
                 weight_tensor_override=weight_tensor,
             )
-            loss = loss_fn(y_pred["fragment_probs"], batch[y_tag], **kwargs)
+            loss = loss_fn(y_pred['fragment_probs'], batch[y_tag], **kwargs)
             if not rt_metric:
                 safe_metric_update(
-                    metric, y_pred["fragment_probs"], batch[y_tag], kwargs
+                    metric, y_pred['fragment_probs'], batch[y_tag], kwargs
                 )
             else:
                 if with_rt:
                     safe_metric_update(
                         metric,
-                        y_pred["rt"][batch["retention_mask"]],
-                        batch["retention_time"][batch["retention_mask"]],
+                        y_pred['rt'][batch['retention_mask']],
+                        batch['retention_time'][batch['retention_mask']],
                         {},
                     )
                 if with_ccs:
                     safe_metric_update(
                         metric,
-                        y_pred["ccs"][batch["ccs_mask"]],
-                        batch["ccs"][batch["ccs_mask"]],
+                        y_pred['ccs'][batch['ccs_mask']],
+                        batch['ccs'][batch['ccs_mask']],
                         {},
                     )
 
@@ -330,7 +330,7 @@ def run_epoch(
                 fabric.backward(loss)
                 optimizer.step()
 
-    avg_loss = loss_total / max(loss_batches, 1) if loss_batches > 0 else float("nan")
+    avg_loss = loss_total / max(loss_batches, 1) if loss_batches > 0 else float('nan')
     metric_label, metric_value = metric_label_and_value(
         metric, preferred_key=metric_name
     )
@@ -353,12 +353,12 @@ class TrainingState:
 
 def _init_history() -> dict:
     return {
-        "epoch": [],
-        "train_error": [],
-        "sqrt_train_error": [],
-        "val_error": [],
-        "sqrt_val_error": [],
-        "lr": [],
+        'epoch': [],
+        'train_error': [],
+        'sqrt_train_error': [],
+        'val_error': [],
+        'sqrt_val_error': [],
+        'lr': [],
     }
 
 
@@ -369,20 +369,20 @@ def _record_history(
     train_result: EpochResult | None,
     val_result: EpochResult | None,
 ) -> None:
-    history["epoch"].append(epoch)
-    history["train_error"].append(
-        train_result.metric_value if train_result is not None else float("nan")
+    history['epoch'].append(epoch)
+    history['train_error'].append(
+        train_result.metric_value if train_result is not None else float('nan')
     )
-    history["sqrt_train_error"].append(
-        train_result.metric_value if train_result is not None else float("nan")
+    history['sqrt_train_error'].append(
+        train_result.metric_value if train_result is not None else float('nan')
     )
-    history["val_error"].append(
-        val_result.metric_value if val_result is not None else float("nan")
+    history['val_error'].append(
+        val_result.metric_value if val_result is not None else float('nan')
     )
-    history["sqrt_val_error"].append(
-        val_result.metric_value if val_result is not None else float("nan")
+    history['sqrt_val_error'].append(
+        val_result.metric_value if val_result is not None else float('nan')
     )
-    history["lr"].append(lr)
+    history['lr'].append(lr)
 
 
 def _run_train_epoch(
@@ -491,15 +491,15 @@ def _step_scheduler(
 ) -> None:
     if scheduler is None:
         return
-    prev_lr = optimizer.param_groups[0]["lr"]
+    prev_lr = optimizer.param_groups[0]['lr']
     if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
         if monitor_metric is not None and not np.isnan(monitor_metric):
             scheduler.step(monitor_metric)
     else:
         scheduler.step()
-    curr_lr = optimizer.param_groups[0]["lr"]
+    curr_lr = optimizer.param_groups[0]['lr']
     if logger is not None and fabric.is_global_zero and curr_lr < prev_lr:
-        logger(f"\t >> Learning rate reduced from {prev_lr:1.0e} to {curr_lr:1.0e}")
+        logger(f'\t >> Learning rate reduced from {prev_lr:1.0e} to {curr_lr:1.0e}')
 
 
 def _maybe_update_best(
@@ -523,9 +523,9 @@ def _maybe_update_best(
         unwrap_model(model).save(output_path)
         if logger is not None:
             if baseline:
-                logger("\t >> Set baseline checkpoint to epoch 0")
+                logger('\t >> Set baseline checkpoint to epoch 0')
             else:
-                logger(f"\t >> Set new checkpoint to epoch {epoch}")
+                logger(f'\t >> Set new checkpoint to epoch {epoch}')
 
 
 def _log_epoch(
@@ -543,41 +543,41 @@ def _log_epoch(
     train_label = (
         train_result.metric_label
         if train_result is not None
-        else (val_result.metric_label if val_result is not None else "metric")
+        else (val_result.metric_label if val_result is not None else 'metric')
     )
     val_label = (
         val_result.metric_label
         if val_result is not None
-        else (train_result.metric_label if train_result is not None else "metric")
+        else (train_result.metric_label if train_result is not None else 'metric')
     )
 
     train_loss_str = (
-        f"{train_result.loss:.4f}"
+        f'{train_result.loss:.4f}'
         if train_result is not None and not np.isnan(train_result.loss)
-        else "n/a"
+        else 'n/a'
     )
     val_loss_str = (
-        f"{val_result.loss:.4f}"
+        f'{val_result.loss:.4f}'
         if val_result is not None and not np.isnan(val_result.loss)
-        else "n/a"
+        else 'n/a'
     )
     train_metric_str = (
-        f"{train_result.metric_value:.4f}"
+        f'{train_result.metric_value:.4f}'
         if train_result is not None and not np.isnan(train_result.metric_value)
-        else "n/a"
+        else 'n/a'
     )
     val_metric_str = (
-        f"{val_result.metric_value:.4f}"
+        f'{val_result.metric_value:.4f}'
         if val_result is not None and not np.isnan(val_result.metric_value)
-        else "n/a"
+        else 'n/a'
     )
 
     logger(
-        f"Epoch {epoch}/{epochs} - "
-        f"loss: {train_loss_str} - "
-        f"val_loss: {val_loss_str} - "
-        f"train_{train_label}: {train_metric_str} - "
-        f"val_{val_label}: {val_metric_str}"
+        f'Epoch {epoch}/{epochs} - '
+        f'loss: {train_loss_str} - '
+        f'val_loss: {val_loss_str} - '
+        f'train_{train_label}: {train_metric_str} - '
+        f'val_{val_label}: {val_metric_str}'
     )
 
 
@@ -616,15 +616,15 @@ def train_fabric_loop(
     has_validation = len(val_data) > 0
     accelerator, devices = resolve_fabric_runtime(device)
     warnings.filterwarnings(
-        "ignore",
-        message=r"The `srun` command is available on your system but is not used\..*",
+        'ignore',
+        message=r'The `srun` command is available on your system but is not used\..*',
         category=PossibleUserWarning,
     )
-    if accelerator == "cuda":
-        torch.set_float32_matmul_precision("high")
+    if accelerator == 'cuda':
+        torch.set_float32_matmul_precision('high')
     if pin_memory is None:
-        pin_memory = accelerator == "cuda"
-    use_non_blocking_transfer = bool(pin_memory and accelerator == "cuda")
+        pin_memory = accelerator == 'cuda'
+    use_non_blocking_transfer = bool(pin_memory and accelerator == 'cuda')
 
     fabric = Fabric(accelerator=accelerator, devices=devices)
     if launch_fabric:
@@ -636,7 +636,7 @@ def train_fabric_loop(
         train_metric = metric_cls().to(fabric.device)
         val_metric = metric_cls().to(fabric.device)
     else:
-        metric_name = "mse"
+        metric_name = 'mse'
         train_metric = MeanSquaredError().to(fabric.device)
         val_metric = MeanSquaredError().to(fabric.device)
 
@@ -644,12 +644,12 @@ def train_fabric_loop(
         optimizer = torch.optim.Adam(
             model.parameters(), lr=learning_rate, weight_decay=weight_decay
         )
-    if scheduler is None and scheduler_name == "plateau":
+    if scheduler is None and scheduler_name == 'plateau':
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             patience=scheduler_patience,
             factor=scheduler_factor,
-            mode="min",
+            mode='min',
         )
 
     train_loader = geom_loader.DataLoader(
@@ -679,7 +679,7 @@ def train_fabric_loop(
     show_val_progress = has_validation and (len(val_data) > progress_threshold)
 
     state = TrainingState(
-        best_metric=float("inf"), best_epoch=-1, history=_init_history()
+        best_metric=float('inf'), best_epoch=-1, history=_init_history()
     )
 
     if has_validation:
@@ -698,7 +698,7 @@ def train_fabric_loop(
             use_validation_mask=use_validation_mask,
             validation_mask_name=validation_mask_name,
             show_progress=show_val_progress,
-            progress_desc=f"Val 0/{epochs}",
+            progress_desc=f'Val 0/{epochs}',
             non_blocking_transfer=use_non_blocking_transfer,
             precursor_loss_weight=precursor_loss_weight,
         )
@@ -706,7 +706,7 @@ def train_fabric_loop(
             _record_history(
                 state.history,
                 epoch=0,
-                lr=optimizer.param_groups[0]["lr"],
+                lr=optimizer.param_groups[0]['lr'],
                 train_result=None,
                 val_result=baseline_result,
             )
@@ -744,7 +744,7 @@ def train_fabric_loop(
             rt_metric=rt_metric,
             optimizer=optimizer,
             show_progress=show_train_progress,
-            progress_desc=f"Train {epoch}/{epochs}",
+            progress_desc=f'Train {epoch}/{epochs}',
             non_blocking_transfer=use_non_blocking_transfer,
             precursor_loss_weight=precursor_loss_weight,
         )
@@ -767,7 +767,7 @@ def train_fabric_loop(
                 use_validation_mask=use_validation_mask,
                 validation_mask_name=validation_mask_name,
                 show_progress=show_val_progress,
-                progress_desc=f"Val {epoch}/{epochs}",
+                progress_desc=f'Val {epoch}/{epochs}',
                 non_blocking_transfer=use_non_blocking_transfer,
                 precursor_loss_weight=precursor_loss_weight,
             )
@@ -800,7 +800,7 @@ def train_fabric_loop(
             _record_history(
                 state.history,
                 epoch=epoch,
-                lr=optimizer.param_groups[0]["lr"],
+                lr=optimizer.param_groups[0]['lr'],
                 train_result=train_result,
                 val_result=val_result if is_val_cycle else None,
             )
@@ -815,14 +815,14 @@ def train_fabric_loop(
 
     if state.best_epoch < 0:
         state.best_epoch = epochs
-        state.best_metric = float("nan")
+        state.best_metric = float('nan')
         if output_path is not None and fabric.is_global_zero:
             unwrap_model(model).save(output_path)
 
     checkpoints = {
-        "epoch": state.best_epoch,
-        "val_loss": state.best_metric,
-        "sqrt_val_loss": state.best_metric,
-        "file": output_path,
+        'epoch': state.best_epoch,
+        'val_loss': state.best_metric,
+        'sqrt_val_loss': state.best_metric,
+        'file': output_path,
     }
     return checkpoints, state.history

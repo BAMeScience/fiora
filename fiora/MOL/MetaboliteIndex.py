@@ -1,6 +1,7 @@
 from typing import List, Literal
-from fiora.MOL.Metabolite import Metabolite
+
 from fiora.MOL.FragmentationTree import FragmentationTree
+from fiora.MOL.Metabolite import Metabolite
 
 
 class MetaboliteIndex:
@@ -14,21 +15,21 @@ class MetaboliteIndex:
                 metabolite.set_id(id)
             else:
                 new_id = len(self.metabolite_index)
-                self.metabolite_index[new_id] = {"Metabolite": metabolite}
+                self.metabolite_index[new_id] = {'Metabolite': metabolite}
                 metabolite.set_id(new_id)
 
     def create_fragmentation_trees(self, depth: int = 1) -> None:
         for id, entry in self.metabolite_index.items():
-            metabolite = entry["Metabolite"]
-            entry["FragmentationTree"] = FragmentationTree(metabolite.MOL)
-            entry["FragmentationTree"].build_fragmentation_tree(
+            metabolite = entry['Metabolite']
+            entry['FragmentationTree'] = FragmentationTree(metabolite.MOL)
+            entry['FragmentationTree'].build_fragmentation_tree(
                 metabolite.MOL, metabolite.edges_as_tuples, depth=depth
             )
 
     def add_fragmentation_trees_to_metabolite_list(
         self,
         list_of_metabolites: List[Metabolite],
-        graph_mismatch_policy: Literal["ignore", "recompute"] = "recompute",
+        graph_mismatch_policy: Literal['ignore', 'recompute'] = 'recompute',
     ) -> None:
         list_of_mismatched_ids = []
 
@@ -38,17 +39,17 @@ class MetaboliteIndex:
                 # Check if metabolite edges align with the index
                 if (
                     metabolite.edges_as_tuples
-                    == self.metabolite_index[id]["Metabolite"].edges_as_tuples
+                    == self.metabolite_index[id]['Metabolite'].edges_as_tuples
                 ):
                     metabolite.add_fragmentation_tree(
-                        self.metabolite_index[id]["FragmentationTree"]
+                        self.metabolite_index[id]['FragmentationTree']
                     )
                 else:
-                    if graph_mismatch_policy == "recompute":
+                    if graph_mismatch_policy == 'recompute':
                         metabolite.fragment_MOL()
-                    elif graph_mismatch_policy == "ignore":
+                    elif graph_mismatch_policy == 'ignore':
                         metabolite.add_fragmentation_tree(
-                            self.metabolite_index[id]["FragmentationTree"]
+                            self.metabolite_index[id]['FragmentationTree']
                         )
                     else:
                         raise ValueError(
@@ -60,7 +61,7 @@ class MetaboliteIndex:
 
     def find_metabolite_id(self, metabolite: Metabolite) -> int:
         for id, entry in self.metabolite_index.items():
-            if metabolite == entry["Metabolite"]:
+            if metabolite == entry['Metabolite']:
                 return id
         return None
 
@@ -68,7 +69,7 @@ class MetaboliteIndex:
         return self.metabolite_index[id]
 
     def get_fragmentation_tree(self, id: int) -> FragmentationTree:
-        return self.metabolite_index[id]["FragmentationTree"]
+        return self.metabolite_index[id]['FragmentationTree']
 
     def get_number_of_metabolites(self) -> int:
         return len(self.metabolite_index)

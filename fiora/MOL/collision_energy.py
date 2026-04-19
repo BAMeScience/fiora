@@ -1,10 +1,10 @@
 charge_factor = {1: 1, 2: 0.9, 3: 0.85, 4: 0.8, 5: 0.75}
 nce_instruments = [
-    "Orbitrap",
-    "LC-ESI-QFT",
-    "LC-APCI-ITFT",
-    "Linear Ion Trap",
-    "LC-ESI-ITFT",
+    'Orbitrap',
+    'LC-ESI-QFT',
+    'LC-APCI-ITFT',
+    'Linear Ion Trap',
+    'LC-ESI-ITFT',
 ]  # "Flow-injection QqQ/MS",
 
 
@@ -19,58 +19,58 @@ def align_CE(ce, precursor_mz, instrument=None):
         if instrument in nce_instruments:
             return NCE_to_eV(ce, precursor_mz)
         return ce
-    if "keV" in ce:
-        ce = ce.replace("keV", "")
+    if 'keV' in ce:
+        ce = ce.replace('keV', '')
         return float(ce) * 1000
-    if "eV" in ce:
-        ce = ce.replace("eV", "")
+    if 'eV' in ce:
+        ce = ce.replace('eV', '')
         try:
             return float(ce)
         except Exception as _:
             return ce
-    elif "V" in ce:
-        ce = ce.replace("V", "")
+    elif 'V' in ce:
+        ce = ce.replace('V', '')
         try:
             return float(ce)
         except Exception as _:
             return ce
-    elif "ev" in ce:
-        ce = ce.replace("ev", "")
+    elif 'ev' in ce:
+        ce = ce.replace('ev', '')
         try:
             return float(ce)
         except Exception as _:
             return ce
-    elif "% (nominal)" in ce:
+    elif '% (nominal)' in ce:
         try:
-            nce = ce.split("% (nominal)")[0].strip().split(" ")[-1]
+            nce = ce.split('% (nominal)')[0].strip().split(' ')[-1]
             nce = float(nce)
             return NCE_to_eV(nce, precursor_mz)
         except Exception as _:
             return ce
-    elif "(nominal)" in ce:
+    elif '(nominal)' in ce:
         try:
-            nce = ce.split("(nominal)")[0].strip().split(" ")[-1]
+            nce = ce.split('(nominal)')[0].strip().split(' ')[-1]
             nce = float(nce)
             return NCE_to_eV(nce, precursor_mz)
         except Exception as _:
             return ce
-    elif "(NCE)" in ce:
+    elif '(NCE)' in ce:
         try:
-            nce = ce.strip().split("(NCE)")[0]
+            nce = ce.strip().split('(NCE)')[0]
             nce = float(nce)
             return NCE_to_eV(nce, precursor_mz)
         except Exception as _:
             return ce
-    elif "HCD" in ce:
+    elif 'HCD' in ce:
         try:
-            nce = ce.strip().split("HCD")[0]
+            nce = ce.strip().split('HCD')[0]
             nce = float(nce)
             return NCE_to_eV(nce, precursor_mz)
         except Exception as _:
             return ce
-    elif "%" in ce:
+    elif '%' in ce:
         try:
-            nce = ce.split("%")[0].strip().split(" ")[-1]
+            nce = ce.split('%')[0].strip().split(' ')[-1]
             nce = float(nce)
             return NCE_to_eV(nce, precursor_mz)
         except Exception as _:

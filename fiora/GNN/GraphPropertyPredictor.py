@@ -1,7 +1,7 @@
+from typing import Literal
+
 import torch
 import torch_geometric.nn as geom_nn
-
-from typing import Literal
 
 
 class GraphPropertyPredictor(torch.nn.Module):
@@ -13,7 +13,7 @@ class GraphPropertyPredictor(torch.nn.Module):
         dense_depth: int = 0,
         dense_dim: int = None,
         residual_connections: bool = False,
-        pooling_func: Literal["avg", "max"] = "avg",
+        pooling_func: Literal['avg', 'max'] = 'avg',
         input_dropout: float = 0,
         latent_dropout: float = 0,
     ) -> None:
@@ -33,7 +33,7 @@ class GraphPropertyPredictor(torch.nn.Module):
         self.activation = torch.nn.ELU()
         self.pooling_func = (
             geom_nn.global_mean_pool
-            if pooling_func == "avg"
+            if pooling_func == 'avg'
             else geom_nn.global_max_pool
         )
         self.input_dropout = torch.nn.Dropout(input_dropout)
@@ -45,7 +45,7 @@ class GraphPropertyPredictor(torch.nn.Module):
         hidden_dimension = dense_dim if dense_dim is not None else num_features
         if hidden_dimension != num_features and residual_connections:
             raise NotImplementedError(
-                "Residual connections require the hidden dimension to match the input dimension."
+                'Residual connections require the hidden dimension to match the input dimension.'
             )
         for _ in range(dense_depth):
             dense_layers += [torch.nn.Linear(num_features, hidden_dimension)]
@@ -54,8 +54,8 @@ class GraphPropertyPredictor(torch.nn.Module):
 
         self.output_layer = torch.nn.Linear(num_features, out_dimension)
 
-    def forward(self, X, batch, covariate_tag="static_graph_features"):
-        X = self.pooling_func(X, batch["batch"])
+    def forward(self, X, batch, covariate_tag='static_graph_features'):
+        X = self.pooling_func(X, batch['batch'])
         X = torch.cat(
             [X, batch[covariate_tag]], axis=-1
         )  # self.input_dropout(batch["static_graph_features"])

@@ -1,26 +1,26 @@
 import regex as re
 
 
-def read(source, sep=" "):
-    file = open(source, "r")
+def read(source, sep=' '):
+    file = open(source, 'r')
 
     data = []
     data_piece = {}
     mz, intensity, ion = [], [], []
 
     for line in file:
-        if "Name:" == line[0:5] or "NAME:" == line[0:5]:
-            data_piece["peaks"] = {"mz": mz, "intensity": intensity, "annotation": ion}
+        if 'Name:' == line[0:5] or 'NAME:' == line[0:5]:
+            data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'annotation': ion}
             data.append(data_piece)
 
             data_piece, mz, intensity, ion = {}, [], [], []
 
-        if ":" in line:
-            key = line.split(":")[0]
-            value = line.split(":", 1)[1].strip()
+        if ':' in line:
+            key = line.split(':')[0]
+            value = line.split(':', 1)[1].strip()
             data_piece[key] = value
         else:
-            if line == "\n":
+            if line == '\n':
                 continue
             ls = line.strip()
             line_split = ls.split(sep)
@@ -28,7 +28,7 @@ def read(source, sep=" "):
             intensity.append(float(line_split[1]))
             # ion.append(line_split[2].strip())
 
-    data_piece["peaks"] = {"mz": mz, "intensity": intensity, "annotation": ion}
+    data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'annotation': ion}
     data.append(data_piece)
     file.close()
 
@@ -36,21 +36,21 @@ def read(source, sep=" "):
 
 
 def read_minimal(source):
-    file = open(source, "r")
+    file = open(source, 'r')
 
     data = []
     data_piece = {}
     mz, intensity = [], []
 
     for line in file:
-        if "Name:" == line[0:5]:
-            data_piece["peaks"] = {"mz": mz, "intensity": intensity}
+        if 'Name:' == line[0:5]:
+            data_piece['peaks'] = {'mz': mz, 'intensity': intensity}
             data.append(data_piece)
-            data_piece = {"Name": line.split(":", 1)[1].strip()}
+            data_piece = {'Name': line.split(':', 1)[1].strip()}
             mz, intensity = [], []
             continue
-        if ":" not in line:
-            line_split = line.split("\t")
+        if ':' not in line:
+            line_split = line.split('\t')
             mz.append(line_split[0])
             intensity.append(line_split[1])
 
@@ -61,13 +61,13 @@ def read_minimal(source):
 
 
 def read_peptides(source):
-    file = open(source, "r")
+    file = open(source, 'r')
 
     pep_list = []
     for line in file:
-        if "Name:" == line[0:5]:
-            li = line.strip("\n")[5:]
-            li = re.sub(r"[\d+ /]", "", li)
+        if 'Name:' == line[0:5]:
+            li = line.strip('\n')[5:]
+            li = re.sub(r'[\d+ /]', '', li)
             pep_list.append(li)
 
     file.close()
@@ -75,20 +75,20 @@ def read_peptides(source):
 
 
 def read_sparse(source):
-    file = open(source, "r")
+    file = open(source, 'r')
 
     file.close()
 
 
 def readOld(source):
-    file = open(source, "r")
+    file = open(source, 'r')
     data = []
     active_lines = []
     for line in file:
-        if "Name:" == line[0:5]:
+        if 'Name:' == line[0:5]:
             data.append(make_data_piece(active_lines))
             active_lines = []
-        active_lines.append(line.strip("\n"))
+        active_lines.append(line.strip('\n'))
     data.append(make_data_piece(active_lines))
     file.close()
 
@@ -100,42 +100,42 @@ def make_data_piece(lines):
     mz, intensity, ion = [], [], []
 
     for line in lines:
-        if ":" in line:
-            key = line.split(":")[0]
-            value = ":".join(line.split(":")[1:])
+        if ':' in line:
+            key = line.split(':')[0]
+            value = ':'.join(line.split(':')[1:])
             data_piece[key] = value
         else:
-            line_split = line.split("\t")
+            line_split = line.split('\t')
             mz.append(line_split[0])
             intensity.append(line_split[1])
             ion.append(line_split[2])
 
-        data_piece["peaks"] = {"mz": mz, "intensity": intensity, "ion": ion}
+        data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'ion': ion}
     return data_piece
 
 
 def get_spectrum_by_name(source, name):
-    file = open(source, "r")
+    file = open(source, 'r')
 
-    line_match = "Name: " + name + "\n"
+    line_match = 'Name: ' + name + '\n'
     data_piece = {}
     mz, intensity, ion = [], [], []
     found = False
 
     for line in file:
-        if line[0:5] == "Name:" and found:
-            data_piece["peaks"] = {"mz": mz, "intensity": intensity, "ion": ion}
+        if line[0:5] == 'Name:' and found:
+            data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'ion': ion}
             break
         if line == line_match:  # exact name match
             found = True
         if not found:
             continue
-        if ":" in line:
-            key = line.split(":")[0]
-            value = line.split(":", 1)[1].strip()
+        if ':' in line:
+            key = line.split(':')[0]
+            value = line.split(':', 1)[1].strip()
             data_piece[key] = value
         else:
-            line_split = line.split("\t")
+            line_split = line.split('\t')
             mz.append(line_split[0])
             intensity.append(line_split[1])
             ion.append(line_split[2].strip())

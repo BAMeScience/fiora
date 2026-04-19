@@ -1,41 +1,42 @@
+from typing import Literal
+
 import torch
 import torch_geometric.nn as geom_nn
-from typing import Literal
 
 """
 Geometric Models
 """
 
 GeometricLayer = {
-    "GraphConv": {
-        "Layer": geom_nn.GraphConv,
-        "divide_output_dim": False,
-        "const_args": {"aggr": "mean"},
-        "batch_args": {"edge_index": "edge_index"},
+    'GraphConv': {
+        'Layer': geom_nn.GraphConv,
+        'divide_output_dim': False,
+        'const_args': {'aggr': 'mean'},
+        'batch_args': {'edge_index': 'edge_index'},
     },
-    "GAT": {
-        "Layer": geom_nn.GATConv,
-        "divide_output_dim": True,
-        "const_args": {"heads": 5},
-        "batch_args": {"edge_index": "edge_index", "edge_attr": "edge_embedding"},
+    'GAT': {
+        'Layer': geom_nn.GATConv,
+        'divide_output_dim': True,
+        'const_args': {'heads': 5},
+        'batch_args': {'edge_index': 'edge_index', 'edge_attr': 'edge_embedding'},
     },
-    "RGCNConv": {
-        "Layer": geom_nn.RGCNConv,
-        "divide_output_dim": False,
-        "const_args": {"aggr": "mean", "num_relations": 4},
-        "batch_args": {"edge_index": "edge_index", "edge_type": "edge_type"},
+    'RGCNConv': {
+        'Layer': geom_nn.RGCNConv,
+        'divide_output_dim': False,
+        'const_args': {'aggr': 'mean', 'num_relations': 4},
+        'batch_args': {'edge_index': 'edge_index', 'edge_type': 'edge_type'},
     },
-    "TransformerConv": {
-        "Layer": geom_nn.TransformerConv,
-        "divide_output_dim": True,
-        "const_args": {"heads": 8, "edge_dim": 300},
-        "batch_args": {"edge_index": "edge_index", "edge_attr": "edge_embedding"},
+    'TransformerConv': {
+        'Layer': geom_nn.TransformerConv,
+        'divide_output_dim': True,
+        'const_args': {'heads': 8, 'edge_dim': 300},
+        'batch_args': {'edge_index': 'edge_index', 'edge_attr': 'edge_embedding'},
     },
-    "CGConv": {
-        "Layer": geom_nn.CGConv,
-        "divide_output_dim": False,
-        "const_args": {"aggr": "mean"},  # , 'dim': 300},
-        "batch_args": {"edge_index": "edge_index", "edge_attr": "edge_embedding"},
+    'CGConv': {
+        'Layer': geom_nn.CGConv,
+        'divide_output_dim': False,
+        'const_args': {'aggr': 'mean'},  # , 'dim': 300},
+        'batch_args': {'edge_index': 'edge_index', 'edge_attr': 'edge_embedding'},
     },
 }
 
@@ -50,10 +51,10 @@ class GNN(torch.nn.Module):
         hidden_features: int,
         depth: int,
         embedding_dim: int = None,
-        embedding_aggregation_type: str = "concat",
+        embedding_aggregation_type: str = 'concat',
         gnn_type: Literal[
-            "GraphConv", "GAT", "RGCNConv", "TransformerConv", "CGConv"
-        ] = "RGCNConv",
+            'GraphConv', 'GAT', 'RGCNConv', 'TransformerConv', 'CGConv'
+        ] = 'RGCNConv',
         layer_norm: bool = False,
         residual_connections: bool = False,
         layer_stacking: bool = False,
@@ -88,15 +89,15 @@ class GNN(torch.nn.Module):
         self.layer_norms = torch.nn.ModuleList()
         for _ in range(depth):
             layers += [
-                GeometricLayer[gnn_type]["Layer"](
+                GeometricLayer[gnn_type]['Layer'](
                     node_features,
                     int(
                         hidden_features
-                        / GeometricLayer[gnn_type]["const_args"]["heads"]
+                        / GeometricLayer[gnn_type]['const_args']['heads']
                     )
-                    if GeometricLayer[gnn_type]["divide_output_dim"]
+                    if GeometricLayer[gnn_type]['divide_output_dim']
                     else hidden_features,
-                    **GeometricLayer[gnn_type]["const_args"],
+                    **GeometricLayer[gnn_type]['const_args'],
                 )
             ]
             if layer_norm:
@@ -107,7 +108,7 @@ class GNN(torch.nn.Module):
 
     def forward(self, batch):
         # Initialize node embeddings
-        X = batch["node_embedding"]
+        X = batch['node_embedding']
         X = self.input_dropout(X)
 
         # If layer stacking is enabled, stack the node features
@@ -116,7 +117,7 @@ class GNN(torch.nn.Module):
         # Apply graph layers
         batch_args = {
             key: batch[value]
-            for key, value in GeometricLayer[self.gnn_type]["batch_args"].items()
+            for key, value in GeometricLayer[self.gnn_type]['batch_args'].items()
         }
         for i, layer in enumerate(self.graph_layers):
             X_skip = X
@@ -139,7 +140,7 @@ class GNN(torch.nn.Module):
         """Get the output dimension of the GNN."""
         if len(self.graph_layers) == 0:
             if self.input_embedding_dim is None:
-                raise ValueError("embedding_dim must be provided when depth=0.")
+                raise ValueError('embedding_dim must be provided when depth=0.')
             return self.input_embedding_dim
         return self.graph_layers[-1].out_channels * (
             len(self.graph_layers) + 1 if self.layer_stacking else 1

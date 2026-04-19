@@ -1,4 +1,5 @@
 import torch
+
 from fiora.MOL.constants import ORDERED_ELEMENT_LIST_WITH_HYDROGEN
 
 
@@ -6,41 +7,41 @@ class CovariateFeatureEncoder:
     def __init__(
         self,
         feature_list=[
-            "collision_energy",
-            "molecular_weight",
-            "precursor_mode",
-            "instrument",
-            "element_composition",
+            'collision_energy',
+            'molecular_weight',
+            'precursor_mode',
+            'instrument',
+            'element_composition',
         ],
         sets_overwrite: dict | None = None,
     ):
-        if "ce_steps" in feature_list:
+        if 'ce_steps' in feature_list:
             raise ValueError(
                 "'ce_steps' is not meant as a setup feature. Remove from feature_list"
             )
         self.encoding_dim = 0
         self.feature_list = feature_list
         self.categorical_sets = {
-            "instrument": [
-                "HCD",
-                "Q-TOF",
-                "IT-FT/ion trap with FTMS",
-                "IT/ion trap",
+            'instrument': [
+                'HCD',
+                'Q-TOF',
+                'IT-FT/ion trap with FTMS',
+                'IT/ion trap',
             ],  # "IT-FT/ion trap with FTMS", "IT/ion trap", "QqQ", "QqQ/triple quadrupole"
-            "precursor_mode": ["[M+H]+", "[M-H]-"],
+            'precursor_mode': ['[M+H]+', '[M-H]-'],
         }
         if sets_overwrite:
             for new_set, new_categories in sets_overwrite.items():
                 self.categorical_sets[new_set] = new_categories
 
-        self.continuous_set = {"collision_energy", "molecular_weight"}
+        self.continuous_set = {'collision_energy', 'molecular_weight'}
         self.normalize_features = {
-            "collision_energy": {"min": 0, "max": 100, "transform": "linear"},
-            "molecular_weight": {"min": 0, "max": 1000, "transform": "linear"},
+            'collision_energy': {'min': 0, 'max': 100, 'transform': 'linear'},
+            'molecular_weight': {'min': 0, 'max': 1000, 'transform': 'linear'},
         }
 
         self.reduced_categorical_features = [
-            "instrument"
+            'instrument'
         ]  # Reduced features may have additional values that will be encoded with another bit (representing OTHERS)
         self.one_hot_mapper = {}
         for feature in self.feature_list:
@@ -59,8 +60,8 @@ class CovariateFeatureEncoder:
                 self.one_hot_mapper[feature] = self.encoding_dim
                 self.encoding_dim += 1
 
-        if "element_composition" in self.feature_list:
-            self.one_hot_mapper["element_composition"] = {
+        if 'element_composition' in self.feature_list:
+            self.one_hot_mapper['element_composition'] = {
                 element: idx
                 for idx, element in enumerate(
                     ORDERED_ELEMENT_LIST_WITH_HYDROGEN, start=self.encoding_dim
@@ -87,14 +88,14 @@ class CovariateFeatureEncoder:
             elif feature in self.continuous_set:
                 value = metadata[feature]
                 if feature in self.normalize_features.keys():
-                    value = (value - self.normalize_features[feature]["min"]) / (
-                        self.normalize_features[feature]["max"]
-                        - self.normalize_features[feature]["min"]
+                    value = (value - self.normalize_features[feature]['min']) / (
+                        self.normalize_features[feature]['max']
+                        - self.normalize_features[feature]['min']
                     )
                 feature_matrix[:, self.one_hot_mapper[feature]] = value
                 feature_matrix = torch.clamp(feature_matrix, 0.0, 1.0)
 
-            elif feature == "element_composition":
+            elif feature == 'element_composition':
                 if G is None:
                     raise ValueError(
                         "Graph G must be provided to encode 'element_composition'"
@@ -102,16 +103,16 @@ class CovariateFeatureEncoder:
                 element_composition = self.get_element_composition(G)
                 for idx, element in enumerate(ORDERED_ELEMENT_LIST_WITH_HYDROGEN):
                     feature_matrix[
-                        :, self.one_hot_mapper["element_composition"][element]
+                        :, self.one_hot_mapper['element_composition'][element]
                     ] = element_composition[idx]
         return feature_matrix
 
     def normalize_collision_steps(self, ce_steps):
         norm_ce = lambda x: (
-            (x - self.normalize_features["collision_energy"]["min"])
+            (x - self.normalize_features['collision_energy']['min'])
             / (
-                self.normalize_features["collision_energy"]["max"]
-                - self.normalize_features["collision_energy"]["min"]
+                self.normalize_features['collision_energy']['max']
+                - self.normalize_features['collision_energy']['min']
             )
         )
         ce_steps = [norm_ce(x) for x in ce_steps]
@@ -126,7 +127,7 @@ class CovariateFeatureEncoder:
 
         # Iterate through nodes in the graph
         for node in G.nodes:
-            atom = G.nodes[node]["atom"]
+            atom = G.nodes[node]['atom']
             symbol = atom.GetSymbol()  # Get the atomic symbol
             if symbol in ORDERED_ELEMENT_LIST_WITH_HYDROGEN:
                 index = ORDERED_ELEMENT_LIST_WITH_HYDROGEN.index(
@@ -137,7 +138,7 @@ class CovariateFeatureEncoder:
             # Add hydrogens explicitly
             hydrogens = atom.GetTotalNumHs()
             hydrogen_index = ORDERED_ELEMENT_LIST_WITH_HYDROGEN.index(
-                "H"
+                'H'
             )  # Ensure 'H' is in ORDERED_ELEMENT_LIST
             element_composition[hydrogen_index] += hydrogens
 
