@@ -151,6 +151,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--summary-col', default='summary')
     parser.add_argument('--peaks-col', default='peaks')
     parser.add_argument('--smiles-col', default='SMILES')
+    parser.add_argument(
+        '--use-bond-energies',
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help='Use per-bond bond dissociation energies from a bond-energy map column.',
+    )
+    parser.add_argument(
+        '--bond-energy-map-col',
+        default='bond_energy_map',
+        help='Column containing per-bond bond-energy maps (JSON list).',
+    )
+    parser.add_argument(
+        '--bond-energy-default',
+        type=float,
+        default=0.0,
+        help='Fallback bond-energy value (eV) for edges without valid entries.',
+    )
     parser.add_argument('--loss-weight-col', default='loss_weight')
     parser.add_argument('--max-rows', type=int, default=None)
     parser.add_argument('--fragmentation-depth', type=int, default=1)
@@ -249,6 +266,29 @@ def _parse_dict(val):
         return None
 
 
+def _parse_list(val):
+    if isinstance(val, list):
+        return val
+    if val is None or (isinstance(val, float) and np.isnan(val)):
+        return None
+    text = str(val).strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, list) else None
+    except Exception:
+        pass
+    norm = re.sub(r'\b(?:NaN|nan)\b', 'None', text)
+    norm = re.sub(r'\b(?:Infinity|inf)\b', '1e309', norm)
+    norm = re.sub(r'\b(?:-Infinity|-inf)\b', '-1e309', norm)
+    try:
+        parsed = ast.literal_eval(norm)
+        return parsed if isinstance(parsed, list) else None
+    except Exception:
+        return None
+
+
 def _parse_dict_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     for col in columns:
         if col in df.columns:
@@ -312,6 +352,9 @@ def _prepare_metabolite_task(task):
         bond_encoder,
         covariate_encoder,
         rt_encoder,
+        use_bond_energies,
+        bond_energy_map_col,
+        bond_energy_default,
     ) = task
 
     smiles = record.get(smiles_col)
@@ -327,6 +370,17 @@ def _prepare_metabolite_task(task):
         mol.compute_graph_attributes(node_encoder, bond_encoder)
     except Exception:
         return idx, None
+
+    if use_bond_energies:
+        mol.edge_continuous_features = _build_bond_energy_edge_features(
+            mol,
+            record.get(bond_energy_map_col),
+            default_value=bond_energy_default,
+        )
+    else:
+        mol.edge_continuous_features = torch.zeros(
+            len(mol.edges_as_tuples), 0, dtype=torch.float32
+        )
 
     if group_id_col in record:
         group_id = record.get(group_id_col)
@@ -355,6 +409,50 @@ def _prepare_metabolite_task(task):
         mol.set_loss_weight(1.0)
 
     return idx, mol
+
+
+def _build_bond_energy_edge_features(
+    mol: Metabolite,
+    raw_bond_energy_map,
+    default_value: float = 0.0,
+) -> torch.Tensor:
+    num_edges = len(mol.edges_as_tuples)
+    if num_edges == 0:
+        return torch.zeros((0, 2), dtype=torch.float32)
+
+    bde_values = np.full(num_edges, np.nan, dtype=np.float32)
+    edge_to_idx = {(int(u), int(v)): i for i, (u, v) in enumerate(mol.edges_as_tuples)}
+
+    bond_energy_map = (
+        raw_bond_energy_map
+        if isinstance(raw_bond_energy_map, list)
+        else _parse_list(raw_bond_energy_map)
+    )
+    if isinstance(bond_energy_map, list):
+        for entry in bond_energy_map:
+            if not isinstance(entry, dict):
+                continue
+            atom_indices = entry.get('atom_indices')
+            if not isinstance(atom_indices, (list, tuple)) or len(atom_indices) != 2:
+                continue
+            try:
+                u = int(atom_indices[0])
+                v = int(atom_indices[1])
+                bde_ev = float(entry.get('bde_eV'))
+            except Exception:
+                continue
+            idx = edge_to_idx.get((u, v))
+            if idx is not None:
+                bde_values[idx] = bde_ev
+            idx = edge_to_idx.get((v, u))
+            if idx is not None:
+                bde_values[idx] = bde_ev
+
+    has_bde = np.isfinite(bde_values).astype(np.float32)
+    bde_filled = np.where(np.isfinite(bde_values), bde_values, default_value).astype(
+        np.float32
+    )
+    return torch.from_numpy(np.stack([bde_filled, has_bde], axis=1))
 
 
 def _resolve_tolerance(record: dict, ppm_col: str, ppm_default: float) -> float:
@@ -476,6 +574,15 @@ def main() -> None:
         df = df.iloc[: args.max_rows].copy()
 
     df = _parse_dict_columns(df, [args.summary_col, args.peaks_col])
+    if args.use_bond_energies:
+        if args.bond_energy_map_col in df.columns:
+            df[args.bond_energy_map_col] = df[args.bond_energy_map_col].apply(
+                _parse_list
+            )
+        else:
+            print(
+                f"Warning: --use-bond-energies enabled but column '{args.bond_energy_map_col}' not found. Falling back to default edge features."
+            )
 
     # Prepare encoders
     overwrite_sets = {}
@@ -546,6 +653,9 @@ def main() -> None:
             bond_encoder,
             covariate_encoder,
             rt_encoder,
+            args.use_bond_energies,
+            args.bond_energy_map_col,
+            args.bond_energy_default,
         )
         for idx, row in df.iterrows()
     )
@@ -677,6 +787,11 @@ def main() -> None:
             'prepare_additional_layers': args.with_rt or args.with_ccs,
             'rt_supported': args.with_rt,
             'ccs_supported': args.with_ccs,
+            'continuous_edge_feature_dim': int(
+                geo_data[0]['edge_continuous_features'].shape[1]
+            )
+            if 'edge_continuous_features' in geo_data[0]
+            else 0,
         }
     )
     if args.hidden_dimension is not None:

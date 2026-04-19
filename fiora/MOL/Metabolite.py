@@ -255,6 +255,11 @@ class Metabolite:
                 len(self.edges_as_tuples), 0, dtype=torch.float32
             )
 
+        # Optional continuous edge-channel (e.g., bond energies); populated externally.
+        self.edge_continuous_features = torch.zeros(
+            len(self.edges_as_tuples), 0, dtype=torch.float32
+        )
+
     def add_metadata(
         self,
         metadata,
@@ -698,12 +703,18 @@ class Metabolite:
                 delattr(self, attr)
 
     def as_geometric_data(self, with_labels=True):
+        edge_continuous_features = getattr(
+            self,
+            'edge_continuous_features',
+            torch.zeros(len(self.edges_as_tuples), 0, dtype=torch.float32),
+        )
         if with_labels:
             return Data(
                 x=self.node_features,
                 edge_index=self.edges.t().contiguous(),
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
+                edge_continuous_features=edge_continuous_features,
                 edge_elem_comp=self.subgraph_elem_comp,
                 subgraph_idx_left=self.subgraph_idx_left,
                 subgraph_idx_right=self.subgraph_idx_right,
@@ -747,6 +758,7 @@ class Metabolite:
                 edge_index=self.edges.t().contiguous(),
                 edge_type=self.edge_bond_types,
                 edge_attr=self.bond_features,
+                edge_continuous_features=edge_continuous_features,
                 edge_elem_comp=self.subgraph_elem_comp,
                 subgraph_idx_left=self.subgraph_idx_left,
                 subgraph_idx_right=self.subgraph_idx_right,

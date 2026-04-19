@@ -35,7 +35,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pre-commit",
-  "ruff==0.15.11",
+  "ruff==0.15.2",
   "pytest",
 ]
 
@@ -63,7 +63,7 @@ include = ["fiora", "fiora.*"]
 ]
 
 [tool.ruff]
-required-version = "==0.15.11"
+required-version = "==0.15.2"
 include = ["fiora/**/*.py", "tests/**/*.py"]
 exclude = [
   ".bzr",

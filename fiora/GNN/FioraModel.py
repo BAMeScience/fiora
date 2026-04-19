@@ -35,6 +35,15 @@ class FioraModel(torch.nn.Module):
             dim=model_params['embedding_dimension'],
             aggregation_type=model_params['embedding_aggregation'],
         )
+        self.continuous_edge_feature_dim = int(
+            model_params.get('continuous_edge_feature_dim', 0)
+        )
+        self.edge_continuous_projection = None
+        if self.continuous_edge_feature_dim > 0:
+            self.edge_continuous_projection = torch.nn.Linear(
+                self.continuous_edge_feature_dim,
+                self.edge_embedding.get_embedding_dimension(),
+            )
         self.GNN_module = GNN(
             hidden_features=model_params['hidden_dimension'],
             depth=model_params['depth'],
@@ -123,10 +132,16 @@ class FioraModel(torch.nn.Module):
             'subgraph_features' not in model_params
         ):  # No subgraph features in older models
             model_params['subgraph_features'] = False
-        if 'pooling' not in model_params:
-            model_params['pooling_func'] = 'avg'
+        if 'pooling_func' not in model_params:
+            # Backward-compatibility for older checkpoints that used `pooling`.
+            if 'pooling' in model_params:
+                model_params['pooling_func'] = model_params['pooling']
+            else:
+                model_params['pooling_func'] = 'avg'
         if 'layer_norm' not in model_params:
             model_params['layer_norm'] = False
+        if 'continuous_edge_feature_dim' not in model_params:
+            model_params['continuous_edge_feature_dim'] = 0
 
         return
 
@@ -204,16 +219,34 @@ class FioraModel(torch.nn.Module):
 
     def get_graph_embedding(self, batch):
         batch['node_embedding'] = self.node_embedding(batch['x'])
-        batch['edge_embedding'] = self.edge_embedding(batch['edge_attr'])
+        batch['edge_embedding'] = self._embed_edge_features(batch)
         X = self.GNN_module(batch)
         pooling_func = self.precursor_module.pooling_func
         return pooling_func(X, batch['batch'])
+
+    def _embed_edge_features(self, batch):
+        edge_embedding = self.edge_embedding(batch['edge_attr'])
+        if self.edge_continuous_projection is None:
+            return edge_embedding
+
+        if 'edge_continuous_features' in batch:
+            continuous_features = batch['edge_continuous_features'].to(
+                dtype=edge_embedding.dtype
+            )
+        else:
+            continuous_features = torch.zeros(
+                edge_embedding.shape[0],
+                self.continuous_edge_feature_dim,
+                device=edge_embedding.device,
+                dtype=edge_embedding.dtype,
+            )
+        return edge_embedding + self.edge_continuous_projection(continuous_features)
 
     def forward(self, batch, with_RT=False, with_CCS=False):
 
         # Embed node features
         batch['node_embedding'] = self.node_embedding(batch['x'])
-        batch['edge_embedding'] = self.edge_embedding(batch['edge_attr'])
+        batch['edge_embedding'] = self._embed_edge_features(batch)
 
         X = self.GNN_module(batch)
 

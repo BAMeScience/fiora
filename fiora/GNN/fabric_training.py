@@ -148,6 +148,25 @@ def build_progress_iterator(dataloader, enabled=False, desc=''):
         return dataloader
 
 
+def _is_dataloader_runtime_error(exc: RuntimeError) -> bool:
+    msg = str(exc)
+    return (
+        'received 0 items of ancdata' in msg
+        or 'Pin memory thread exited unexpectedly' in msg
+        or 'DataLoader worker' in msg
+    )
+
+
+def _enable_safe_sharing_strategy() -> None:
+    try:
+        import torch.multiprocessing as mp
+
+        if mp.get_sharing_strategy() != 'file_system':
+            mp.set_sharing_strategy('file_system')
+    except Exception:
+        pass
+
+
 def unwrap_model(model):
     return model.module if hasattr(model, 'module') else model
 
@@ -622,9 +641,19 @@ def train_fabric_loop(
     )
     if accelerator == 'cuda':
         torch.set_float32_matmul_precision('high')
+    pin_memory_auto = pin_memory is None
     if pin_memory is None:
         pin_memory = accelerator == 'cuda'
+    if pin_memory_auto and pin_memory and num_workers > 0:
+        if logger is not None:
+            logger(
+                'Auto pin_memory disabled because num_workers>0; '
+                'this avoids known DataLoader ancdata/pin-memory thread crashes.'
+            )
+        pin_memory = False
     use_non_blocking_transfer = bool(pin_memory and accelerator == 'cuda')
+    if num_workers > 0:
+        _enable_safe_sharing_strategy()
 
     fabric = Fabric(accelerator=accelerator, devices=devices)
     if launch_fabric:
@@ -652,56 +681,90 @@ def train_fabric_loop(
             mode='min',
         )
 
-    train_loader = geom_loader.DataLoader(
-        train_data,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=True,
-        pin_memory=pin_memory,
-    )
-    val_loader = None
-    if has_validation:
-        val_loader = geom_loader.DataLoader(
-            val_data,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            shuffle=False,
-            pin_memory=pin_memory,
-        )
-
     model, optimizer = fabric.setup(model, optimizer)
-    if val_loader is not None:
-        train_loader, val_loader = fabric.setup_dataloaders(train_loader, val_loader)
-    else:
-        train_loader = fabric.setup_dataloaders(train_loader)
+    curr_num_workers = int(num_workers)
+    curr_pin_memory = bool(pin_memory)
+
+    def build_wrapped_loaders(curr_workers: int, curr_pin: bool):
+        train_loader_local = geom_loader.DataLoader(
+            train_data,
+            batch_size=batch_size,
+            num_workers=curr_workers,
+            shuffle=True,
+            pin_memory=curr_pin,
+        )
+        val_loader_local = None
+        if has_validation:
+            val_loader_local = geom_loader.DataLoader(
+                val_data,
+                batch_size=batch_size,
+                num_workers=curr_workers,
+                shuffle=False,
+                pin_memory=curr_pin,
+            )
+        if val_loader_local is not None:
+            return fabric.setup_dataloaders(train_loader_local, val_loader_local)
+        return fabric.setup_dataloaders(train_loader_local), None
+
+    train_loader, val_loader = build_wrapped_loaders(curr_num_workers, curr_pin_memory)
 
     show_train_progress = len(train_data) > progress_threshold
     show_val_progress = has_validation and (len(val_data) > progress_threshold)
+    used_runtime_loader_fallback = False
+
+    def fallback_to_safe_loaders(exc: RuntimeError, context: str) -> bool:
+        nonlocal train_loader, val_loader, curr_num_workers, curr_pin_memory
+        nonlocal use_non_blocking_transfer, used_runtime_loader_fallback
+        if used_runtime_loader_fallback:
+            return False
+        if not _is_dataloader_runtime_error(exc):
+            return False
+        used_runtime_loader_fallback = True
+        curr_num_workers = 0
+        curr_pin_memory = False
+        use_non_blocking_transfer = False
+        if logger is not None:
+            logger(
+                f'Dataloader failure during {context} '
+                f'({type(exc).__name__}: {exc}). '
+                'Retrying with safe loader settings (num_workers=0, pin_memory=False).'
+            )
+        train_loader, val_loader = build_wrapped_loaders(
+            curr_num_workers, curr_pin_memory
+        )
+        return True
 
     state = TrainingState(
         best_metric=float('inf'), best_epoch=-1, history=_init_history()
     )
 
     if has_validation:
-        baseline_result = _run_val_epoch(
-            fabric=fabric,
-            model=model,
-            dataloader=val_loader,
-            loss_fn=loss_fn,
-            metric=val_metric,
-            metric_name=metric_name,
-            y_label=y_label,
-            with_weights=with_weights,
-            with_rt=with_rt,
-            with_ccs=with_ccs,
-            rt_metric=rt_metric,
-            use_validation_mask=use_validation_mask,
-            validation_mask_name=validation_mask_name,
-            show_progress=show_val_progress,
-            progress_desc=f'Val 0/{epochs}',
-            non_blocking_transfer=use_non_blocking_transfer,
-            precursor_loss_weight=precursor_loss_weight,
-        )
+        while True:
+            try:
+                baseline_result = _run_val_epoch(
+                    fabric=fabric,
+                    model=model,
+                    dataloader=val_loader,
+                    loss_fn=loss_fn,
+                    metric=val_metric,
+                    metric_name=metric_name,
+                    y_label=y_label,
+                    with_weights=with_weights,
+                    with_rt=with_rt,
+                    with_ccs=with_ccs,
+                    rt_metric=rt_metric,
+                    use_validation_mask=use_validation_mask,
+                    validation_mask_name=validation_mask_name,
+                    show_progress=show_val_progress,
+                    progress_desc=f'Val 0/{epochs}',
+                    non_blocking_transfer=use_non_blocking_transfer,
+                    precursor_loss_weight=precursor_loss_weight,
+                )
+                break
+            except RuntimeError as exc:
+                if fallback_to_safe_loaders(exc, context='validation baseline'):
+                    continue
+                raise
         if fabric.is_global_zero:
             _record_history(
                 state.history,
@@ -730,47 +793,63 @@ def train_fabric_loop(
         )
 
     for epoch in range(1, epochs + 1):
-        train_result = _run_train_epoch(
-            fabric=fabric,
-            model=model,
-            dataloader=train_loader,
-            loss_fn=loss_fn,
-            metric=train_metric,
-            metric_name=metric_name,
-            y_label=y_label,
-            with_weights=with_weights,
-            with_rt=with_rt,
-            with_ccs=with_ccs,
-            rt_metric=rt_metric,
-            optimizer=optimizer,
-            show_progress=show_train_progress,
-            progress_desc=f'Train {epoch}/{epochs}',
-            non_blocking_transfer=use_non_blocking_transfer,
-            precursor_loss_weight=precursor_loss_weight,
-        )
+        while True:
+            try:
+                train_result = _run_train_epoch(
+                    fabric=fabric,
+                    model=model,
+                    dataloader=train_loader,
+                    loss_fn=loss_fn,
+                    metric=train_metric,
+                    metric_name=metric_name,
+                    y_label=y_label,
+                    with_weights=with_weights,
+                    with_rt=with_rt,
+                    with_ccs=with_ccs,
+                    rt_metric=rt_metric,
+                    optimizer=optimizer,
+                    show_progress=show_train_progress,
+                    progress_desc=f'Train {epoch}/{epochs}',
+                    non_blocking_transfer=use_non_blocking_transfer,
+                    precursor_loss_weight=precursor_loss_weight,
+                )
+                break
+            except RuntimeError as exc:
+                if fallback_to_safe_loaders(exc, context=f'train epoch {epoch}'):
+                    continue
+                raise
 
         is_val_cycle = has_validation and (epoch % val_every == 0)
         val_result = None
         if is_val_cycle:
-            val_result = _run_val_epoch(
-                fabric=fabric,
-                model=model,
-                dataloader=val_loader,
-                loss_fn=loss_fn,
-                metric=val_metric,
-                metric_name=metric_name,
-                y_label=y_label,
-                with_weights=with_weights,
-                with_rt=with_rt,
-                with_ccs=with_ccs,
-                rt_metric=rt_metric,
-                use_validation_mask=use_validation_mask,
-                validation_mask_name=validation_mask_name,
-                show_progress=show_val_progress,
-                progress_desc=f'Val {epoch}/{epochs}',
-                non_blocking_transfer=use_non_blocking_transfer,
-                precursor_loss_weight=precursor_loss_weight,
-            )
+            while True:
+                try:
+                    val_result = _run_val_epoch(
+                        fabric=fabric,
+                        model=model,
+                        dataloader=val_loader,
+                        loss_fn=loss_fn,
+                        metric=val_metric,
+                        metric_name=metric_name,
+                        y_label=y_label,
+                        with_weights=with_weights,
+                        with_rt=with_rt,
+                        with_ccs=with_ccs,
+                        rt_metric=rt_metric,
+                        use_validation_mask=use_validation_mask,
+                        validation_mask_name=validation_mask_name,
+                        show_progress=show_val_progress,
+                        progress_desc=f'Val {epoch}/{epochs}',
+                        non_blocking_transfer=use_non_blocking_transfer,
+                        precursor_loss_weight=precursor_loss_weight,
+                    )
+                    break
+                except RuntimeError as exc:
+                    if fallback_to_safe_loaders(
+                        exc, context=f'validation epoch {epoch}'
+                    ):
+                        continue
+                    raise
 
         monitor_metric = _monitor_metric(
             has_validation=has_validation,
