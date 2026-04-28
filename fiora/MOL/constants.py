@@ -3,7 +3,9 @@ from rdkit import Chem
 H_MINUS_MASS = 1.008373611910  # from Descriptors.ExactMolWt(Chem.MolFromSmiles('[H-]'))
 H_PLUS_MASS = 1.007276452090  # from Descriptors.ExactMolWt(Chem.MolFromSmiles('[H+]'))
 H2_MASS = 2.015650064000  # from Descriptors.ExactMolWt(Chem.MolFromSmiles('[HH]'))
-NEUTRAL_H_MASS = 1.007825032000  # from Descriptors.ExactMolWt(Chem.MolFromSmiles('[H]'))
+NEUTRAL_H_MASS = (
+    1.007825032000  # from Descriptors.ExactMolWt(Chem.MolFromSmiles('[H]'))
+)
 
 ADDUCT_WEIGHTS = {
     '[M+H]+': H_PLUS_MASS,  # 1.007276,
