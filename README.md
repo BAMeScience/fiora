@@ -82,7 +82,7 @@ By default, an open-source model is selected automatically, and predictions typi
 
 ### Models and Resources
 
-Default model checkpoints are packaged under `fiora/resources/models` (Python package: `fiora.resources.models`). The CLI uses these automatically when `--model default` is selected.
+Default models are packaged under `fiora/resources/models`. The CLI uses these automatically when `--model default` is selected.
 
 Scripts for downloading and preprocessing MSnLib are provided in `resources/data/msnlib` (`download_msnlib.py` and `preprocess_msnlib.py`).
 
@@ -95,14 +95,9 @@ python resources/data/msnlib/preprocess_msnlib.py
 
 Use `--record-pattern` to select a different subset, e.g. `--record-pattern "*_pos_*.mgf"`.
 
-### MSnLib Training Parity (Notebook vs CLI)
+### MSnLib (Re)training
 
-The training notebooks override categorical feature sets for MSnLib:
-
-- `instrument`: `["HCD"]`
-- `precursor_mode`: `["[M+H]+", "[M-H]-", "[M]+", "[M]-"]`
-
-To match notebook training results when using `fiora-train`, pass the same overrides:
+To (re)train a new FIORA model, use `fiora-train`. For example, to train on MSnLib with the same parameters used for the v1.0 release:
 
 ```bash
 fiora-train \
@@ -119,40 +114,9 @@ To persist per-epoch training history, add `--history-out` (supports `.json` or 
 fiora-train ... --history-out checkpoints/fiora_history.json
 ```
 
-`pin_memory` is enabled automatically on CUDA; you can override with `--pin-memory` or `--no-pin-memory`.
-`--num-workers` is used for both DataLoader workers and parallel preprocessing (thread-based metabolite graph/peak matching setup) in the training CLI.
-
-For stronger cosine performance, a common setup is:
-
-```bash
-# Stage 1
-fiora-train \
-  -i resources/data/msnlib/library.csv \
-  -o checkpoints/fiora_stage1.pt \
-  --device cuda:0 \
-  --instruments HCD \
-  --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-" \
-  --hidden-dimension 384 \
-  --residual-connections \
-  --no-layer-stacking
-
-# Stage 2 (optional continuation)
-fiora-train \
-  -i resources/data/msnlib/library.csv \
-  -o checkpoints/fiora.pt \
-  --resume checkpoints/fiora_stage1.pt \
-  --device cuda:0 \
-  --instruments HCD \
-  --precursor-modes "[M+H]+,[M-H]-,[M]+,[M]-" \
-  --loss weighted_mse \
-  --y-label compiled_probsSQRT \
-  --learning-rate 5e-5 \
-  --epochs 30
-```
-
 ### Model Evaluation CLI
 
-You can evaluate a trained checkpoint on validation/test splits with:
+You can evaluate a trained model on validation/test splits with:
 
 ```bash
 fiora-eval \
