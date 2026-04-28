@@ -1,5 +1,6 @@
 import torch
 
+
 class GCNLayer(torch.nn.Module):
     def __init__(self, in_features, out_features, bias=True) -> None:
         super().__init__()
@@ -9,7 +10,5 @@ class GCNLayer(torch.nn.Module):
 
     def forward(self, X, A):
         HW = self.W1(X)
-        AHW = torch.bmm(A, self.W2(X)) #A @ self.W2(X)
+        AHW = torch.bmm(A, self.W2(X))  # A @ self.W2(X)
         return self.activation(torch.add(HW, AHW))
-
-

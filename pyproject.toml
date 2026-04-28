@@ -17,25 +17,43 @@ classifiers = [
 ]
 dependencies = [
   "numpy",
+  "pandas",
   "seaborn",
   "torch",
+  "lightning-fabric>=2.6,<2.7",
   "torch_geometric>=2.6,<2.7",
+  "torchmetrics",
   "dill",
   "rdkit",
+  "regex",
   "treelib",
   "spectrum_utils",
   "ipython>=8",
+  "scikit-learn",
 ]
+
+[project.optional-dependencies]
+dev = [
+  "pre-commit",
+  "ruff==0.15.11",
+  "pytest",
+]
+
+[project.scripts]
+fiora-predict = "fiora.cli.predict:main"
+fiora-train = "fiora.cli.train:main"
+fiora-eval = "fiora.cli.eval:main"
+fiora-model-info = "fiora.cli.model_info:main"
 
 [tool.setuptools]
 include-package-data = true
-script-files = ["scripts/fiora-predict"]  # like setup.py `scripts=[...]` (not console entry points)
+script-files = ["scripts/fiora-predict", "scripts/fiora-train", "scripts/fiora-eval", "scripts/fiora-model-info"]
 
 [tool.setuptools.packages.find]
-include = ["fiora", "fiora.*", "models"]
+include = ["fiora", "fiora.*"]
 
 [tool.setuptools.package-data]
-models = [
+"fiora.resources.models" = [
   "fiora_OS_v0.1.0.pt",
   "fiora_OS_v0.1.0_state.pt",
   "fiora_OS_v0.1.0_params.json",
@@ -43,3 +61,82 @@ models = [
   "fiora_OS_v1.0.0_state.pt",
   "fiora_OS_v1.0.0_params.json",
 ]
+
+[tool.ruff]
+required-version = "==0.15.11"
+include = ["fiora/**/*.py", "tests/**/*.py"]
+exclude = [
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
+  "dependencies",
+]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "PL",
+  "F",
+  "UP",
+  "I",
+]
+ignore = [
+  "F401",
+  "F403",
+  "F405",
+  "F841",
+  "E501",
+  "E701",
+  "E711",
+  "E731",
+  "E741",
+  "E402",
+  "UP006",
+  "UP008",
+  "UP015",
+  "UP035",
+  "PLR0402",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR1704",
+  "PLR1711",
+  "PLR1714",
+  "PLR1722",
+  "PLR2004",
+  "PLR5501",
+  "PLC0207",
+  "PLC0415",
+  "PLW0603",
+  "PLW1641",
+  "PLW2901",
+]
+fixable = ["ALL"]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

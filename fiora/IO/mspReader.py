@@ -1,8 +1,4 @@
-#from pyteomics import mzml
-#import regex as re
-
-
-# import spectrum_utils.spectrum as sus
+import regex as re
 
 
 def read(source, sep=' '):
@@ -24,13 +20,13 @@ def read(source, sep=' '):
             value = line.split(':', 1)[1].strip()
             data_piece[key] = value
         else:
-            if line == "\n":
+            if line == '\n':
                 continue
             ls = line.strip()
             line_split = ls.split(sep)
             mz.append(float(line_split[0]))
             intensity.append(float(line_split[1]))
-            #ion.append(line_split[2].strip())
+            # ion.append(line_split[2].strip())
 
     data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'annotation': ion}
     data.append(data_piece)
@@ -44,7 +40,7 @@ def read_minimal(source):
 
     data = []
     data_piece = {}
-    mz, intensity, ion = [], [], []
+    mz, intensity = [], []
 
     for line in file:
         if 'Name:' == line[0:5]:
@@ -53,7 +49,7 @@ def read_minimal(source):
             data_piece = {'Name': line.split(':', 1)[1].strip()}
             mz, intensity = [], []
             continue
-        if not (':' in line):
+        if ':' not in line:
             line_split = line.split('\t')
             mz.append(line_split[0])
             intensity.append(line_split[1])
@@ -70,9 +66,9 @@ def read_peptides(source):
     pep_list = []
     for line in file:
         if 'Name:' == line[0:5]:
-            l = line.strip('\n')[5:]
-            l = re.sub(r'[\d+ /]', '', l)
-            pep_list.append(l)
+            li = line.strip('\n')[5:]
+            li = re.sub(r'[\d+ /]', '', li)
+            pep_list.append(li)
 
     file.close()
     return pep_list
@@ -86,7 +82,6 @@ def read_sparse(source):
 
 def readOld(source):
     file = open(source, 'r')
-    c = 0
     data = []
     active_lines = []
     for line in file:
@@ -122,18 +117,19 @@ def make_data_piece(lines):
 def get_spectrum_by_name(source, name):
     file = open(source, 'r')
 
-    line_match = "Name: " + name + "\n"
+    line_match = 'Name: ' + name + '\n'
     data_piece = {}
     mz, intensity, ion = [], [], []
     found = False
 
     for line in file:
-        if line[0:5] == "Name:" and found:
+        if line[0:5] == 'Name:' and found:
             data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'ion': ion}
             break
-        if line == line_match: #exact name match
+        if line == line_match:  # exact name match
             found = True
-        if not found: continue
+        if not found:
+            continue
         if ':' in line:
             key = line.split(':')[0]
             value = line.split(':', 1)[1].strip()
@@ -149,7 +145,7 @@ def get_spectrum_by_name(source, name):
     return data_piece
 
 
-'''
+"""
 Thoughts on format
 
 Every Spectrum becomes a dictionary 
@@ -168,4 +164,4 @@ minimal = {Name, pd.DF mz vs intensity}
 sparse = (Name, sparse_vector)
 
 
-'''
+"""

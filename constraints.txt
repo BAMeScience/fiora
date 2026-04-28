@@ -121,6 +121,7 @@ pytz==2025.2
 PyYAML==6.0.2
 pyzmq==26.4.0
 rdkit==2024.9.6
+regex==2024.11.6
 referencing==0.36.2
 requests==2.32.3
 rfc3339-validator==0.1.4
@@ -141,6 +142,7 @@ threadpoolctl==3.6.0
 tinycss2==1.4.0
 tomli==2.2.1
 torch==2.6.0
+lightning-fabric==2.6.1
 torch-geometric==2.6.1
 torchmetrics==1.8.1
 tornado==6.4.2

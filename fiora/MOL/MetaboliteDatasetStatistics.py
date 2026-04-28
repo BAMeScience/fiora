@@ -1,7 +1,10 @@
-import pandas as pd
 from collections import Counter
-from fiora.MOL.Metabolite import Metabolite
+
+import pandas as pd
+
 from fiora.MOL.constants import ORDERED_ELEMENT_LIST
+from fiora.MOL.Metabolite import Metabolite
+
 
 class MetaboliteDatasetStatistics:
     def __init__(self, data: pd.DataFrame):
@@ -24,19 +27,27 @@ class MetaboliteDatasetStatistics:
             if isinstance(metabolite, Metabolite):
                 # Create nested dictionaries for presence and count
                 metadata_dict = {
-                    "element_presence": {element: int(element in metabolite.node_elements) for element in ORDERED_ELEMENT_LIST},
-                    "element_count": {element: metabolite.node_elements.count(element) for element in ORDERED_ELEMENT_LIST},
+                    'element_presence': {
+                        element: int(element in metabolite.node_elements)
+                        for element in ORDERED_ELEMENT_LIST
+                    },
+                    'element_count': {
+                        element: metabolite.node_elements.count(element)
+                        for element in ORDERED_ELEMENT_LIST
+                    },
                 }
                 # Add additional metadata
-                metadata_dict["ExactMolWeight"] = metabolite.ExactMolWeight
-                metadata_dict["Formula"] = metabolite.Formula
-                metadata_dict["SMILES"] = metabolite.SMILES
-                metadata_dict["InChIKey"] = metabolite.InChIKey
-                metadata_dict["TotalElements"] = len(metabolite.node_elements)  # Total number of elements
+                metadata_dict['ExactMolWeight'] = metabolite.ExactMolWeight
+                metadata_dict['Formula'] = metabolite.Formula
+                metadata_dict['SMILES'] = metabolite.SMILES
+                metadata_dict['InChIKey'] = metabolite.InChIKey
+                metadata_dict['TotalElements'] = len(
+                    metabolite.node_elements
+                )  # Total number of elements
                 all_meta.append(metadata_dict)
 
         return pd.DataFrame(all_meta)
-    
+
     def _compute_element_summary(self):
         """
         Compute total counts, presence probability for each element, and ANY_RARE probability across the entire dataset.
@@ -50,7 +61,11 @@ class MetaboliteDatasetStatistics:
         any_rare_count = 0  # Counter for molecules with at least one rare element
 
         # Define rare elements (everything except C, O, N, H)
-        rare_elements = [element for element in ORDERED_ELEMENT_LIST if element not in ["C", "O", "N", "H"]]
+        rare_elements = [
+            element
+            for element in ORDERED_ELEMENT_LIST
+            if element not in ['C', 'O', 'N', 'H']
+        ]
 
         # Aggregate counts and presence probabilities
         for _, row in individual_stats.iterrows():
@@ -65,16 +80,18 @@ class MetaboliteDatasetStatistics:
 
         # Compute presence probabilities
         total_molecules = len(individual_stats)
-        presence_probabilities = {element: presence_counts[element] / total_molecules for element in ORDERED_ELEMENT_LIST}
-
-        # Compute ANY_RARE probability and add it as another "element"
-        presence_probabilities["ANY_RARE"] = any_rare_count / total_molecules
-
-        return {
-            "Total Counts": total_counts,
-            "Presence Probabilities": presence_probabilities,
+        presence_probabilities = {
+            element: presence_counts[element] / total_molecules
+            for element in ORDERED_ELEMENT_LIST
         }
 
+        # Compute ANY_RARE probability and add it as another "element"
+        presence_probabilities['ANY_RARE'] = any_rare_count / total_molecules
+
+        return {
+            'Total Counts': total_counts,
+            'Presence Probabilities': presence_probabilities,
+        }
 
     def generate_molecular_statistics(self, unique_compounds: bool = True):
         """
@@ -83,11 +100,10 @@ class MetaboliteDatasetStatistics:
         # Retrieve detailed information for each metabolite
         if unique_compounds:
             self.data = self.data.drop_duplicates(subset='group_id')
-        self.statistics['Individual_molecular_stats'] = self._compute_element_composition_stats()
+        self.statistics['Individual_molecular_stats'] = (
+            self._compute_element_composition_stats()
+        )
         self.statistics['Molecular Summary'] = self._compute_element_summary()
-
-        
-        
 
     def _compute_duplicates(self):
         """
@@ -104,5 +120,7 @@ class MetaboliteDatasetStatistics:
         :return: dict containing all statistics.
         """
         if not self.statistics:
-            raise ValueError("Statistics have not been generated yet. Call generate_molecular_statistics() first.")
+            raise ValueError(
+                'Statistics have not been generated yet. Call generate_molecular_statistics() first.'
+            )
         return self.statistics

@@ -1,7 +1,8 @@
-#TODO Check if first spectrum is read
+# TODO Check if first spectrum is read
 import pandas as pd
 
-def read(source, sep: str=" ", as_df=False, debug=False):
+
+def read(source, sep: str = ' ', as_df=False, debug=False):
     file = open(source, 'r')
     in_begin_ions = False
     data = []
@@ -9,25 +10,32 @@ def read(source, sep: str=" ", as_df=False, debug=False):
     mz, intensity, ion = [], [], []
 
     for line in file:
-        if debug: print(line.strip())
-        if line == "MASS=Monoisotopic\n": continue #TODO edge case hacky solution
-        if line == '\n': continue
-        if line.startswith("#"): continue
-        if line.startswith("NA#"): continue
-        if line.strip() == "END IONS":
+        if debug:
+            print(line.strip())
+        if line == 'MASS=Monoisotopic\n':
+            continue  # TODO edge case hacky solution
+        if line == '\n':
+            continue
+        if line.startswith('#'):
+            continue
+        if line.startswith('NA#'):
+            continue
+        if line.strip() == 'END IONS':
             in_begin_ions = False
             data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'annotation': ion}
             data.append(data_piece)
             continue
-        
-        if line.strip() == "BEGIN IONS" or line.strip() == "BEGIN IONS:":
+
+        if line.strip() == 'BEGIN IONS' or line.strip() == 'BEGIN IONS:':
             in_begin_ions = True
             data_piece, mz, intensity, ion = {}, [], [], []
             continue
 
         if '=' in line:
             key = line.split('=')[0]
-            value = "=".join(line.strip().split('=', 1)[1:]) #line.split('=', 1)[1].strip()
+            value = '='.join(
+                line.strip().split('=', 1)[1:]
+            )  # line.split('=', 1)[1].strip()
             data_piece[key] = value
         else:
             line_split = line.split(sep)
@@ -47,13 +55,13 @@ def read(source, sep: str=" ", as_df=False, debug=False):
 def get_spectrum_by_name(source, name):
     file = open(source, 'r')
 
-    line_match = "TITLE=" + name + "\n"
+    line_match = 'TITLE=' + name + '\n'
     data_piece = {}
     mz, intensity, ion = [], [], []
     found = False
 
     for line in file:
-        if line == "END IONS\n" and found:
+        if line == 'END IONS\n' and found:
             data_piece['peaks'] = {'mz': mz, 'intensity': intensity, 'ion': ion}
             break
         if line == line_match:  # exact name match
@@ -75,7 +83,7 @@ def get_spectrum_by_name(source, name):
     return data_piece
 
 
-'''
+"""
 Thoughts on format
 
 Every Spectrum becomes a dictionary 
@@ -94,4 +102,4 @@ minimal = {Name, pd.DF mz vs intensity}
 sparse = (Name, sparse_vector)
 
 
-'''
+"""
